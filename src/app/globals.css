@@ -127,16 +127,3 @@
   }
 }
 
-/* Add essential dialog styling */
-[data-dialog-container="true"] {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-
-[role="dialog"] {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-

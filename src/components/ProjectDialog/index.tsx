@@ -71,41 +71,39 @@ export function ProjectDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-      <DialogContent className="max-w-md p-6 rounded-lg shadow-lg">
-        <DialogHeader className="pb-4">
-          <DialogTitle className="text-xl font-semibold">{title}</DialogTitle>
-          <DialogDescription className="text-sm text-muted-foreground mt-1">
+      <DialogContent className="sm:max-w-[425px] flex flex-col w-full">
+        <DialogHeader className="flex flex-col space-y-2 w-full">
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>
             {mode === 'create' 
               ? 'Создайте новый проект для отслеживания ключевых слов' 
               : 'Внесите изменения в существующий проект'}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-4 py-3">
-            <div className="space-y-2">
-              <Label htmlFor="name">
-                Название
-              </Label>
+        <form onSubmit={handleSubmit} className="flex flex-col w-full">
+          <div className="grid gap-4 py-4 w-full">
+            <div className="grid gap-2 w-full">
+              <Label htmlFor="name">Название</Label>
               <Input
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
+                className="w-full"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="description">
-                Описание
-              </Label>
+            <div className="grid gap-2 w-full">
+              <Label htmlFor="description">Описание</Label>
               <Textarea
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
+                className="w-full"
               />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex justify-end w-full">
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
