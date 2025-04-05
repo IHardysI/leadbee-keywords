@@ -127,21 +127,16 @@
   }
 }
 
-[role="dialog"][data-state="open"] {
-  max-width: none !important;
-  max-height: none !important;
+/* Add essential dialog styling */
+[data-dialog-container="true"] {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
-[data-dialog-container="true"], 
 [role="dialog"] {
-  display: block !important;
-  align-items: initial !important;
-  justify-content: initial !important;
-}
-
-.project-dialog-content {
-  max-width: 450px !important;
-  width: auto !important;
-  margin: 10% auto !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 

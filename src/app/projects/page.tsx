@@ -5,7 +5,7 @@ import { ProjectCard } from "@/components/ProjectCard";
 import { Button } from "@/components/ui/button";
 import { Plus, Loader } from "lucide-react";
 import { ProjectDialog } from "@/components/ProjectDialog";
-import { getProjects, createProject } from "@/shared/api/projects/projects";
+import { getProjects, createProject, updateProject, deleteProject } from "@/shared/api/projects/projects";
 import { toast } from "sonner";
 
 interface ProjectCardData {
@@ -39,7 +39,7 @@ export default function ProjectsPage() {
           description: project.description,
           keywordsCount: 0, // These could be updated if the API provides this data
           chatsCount: 0,    // These could be updated if the API provides this data
-          createdAt: project.created_at,
+          createdAt: project.created_at || new Date(),
           status: "Активен"
         }));
         
@@ -70,7 +70,7 @@ export default function ProjectsPage() {
         description: createdProject.description,
         keywordsCount: 0,
         chatsCount: 0,
-        createdAt: createdProject.created_at,
+        createdAt: createdProject.created_at || new Date(),
         status: "Активен"
       };
       
@@ -100,16 +100,57 @@ export default function ProjectsPage() {
     }
   };
 
-  const handleEditProject = (id: string | number, updatedData: { name: string; description: string }) => {
-    setProjects(projects.map(project => 
-      project.id === id 
-        ? { ...project, ...updatedData } 
-        : project
-    ));
+  const handleEditProject = async (id: string | number, updatedData: { name: string; description: string }) => {
+    try {
+      // Call the API to update the project
+      await updateProject(id, updatedData);
+      
+      // Update local state
+      setProjects(projects.map(project => 
+        project.id === id 
+          ? { ...project, ...updatedData } 
+          : project
+      ));
+      
+      // Show success toast
+      toast.success(`Проект успешно обновлен.`, {
+        description: `Изменения для "${updatedData.name}" сохранены.`,
+      });
+      
+    } catch (error) {
+      console.error("Failed to update project:", error);
+      
+      // Show error toast
+      toast.error("Не удалось обновить проект", {
+        description: "Пожалуйста, попробуйте снова позже.",
+      });
+    }
   };
 
-  const handleDeleteProject = (id: string | number) => {
-    setProjects(projects.filter(project => project.id !== id));
+  const handleDeleteProject = async (id: string | number) => {
+    try {
+      // Find the project to get its name for the toast
+      const projectToDelete = projects.find(p => p.id === id);
+      
+      // Call the API to delete the project
+      await deleteProject(id);
+      
+      // Update local state
+      setProjects(projects.filter(project => project.id !== id));
+      
+      // Show success toast
+      toast.success(`Проект удален.`, {
+        description: projectToDelete ? `Проект "${projectToDelete.name}" удален.` : undefined,
+      });
+      
+    } catch (error) {
+      console.error("Failed to delete project:", error);
+      
+      // Show error toast
+      toast.error("Не удалось удалить проект", {
+        description: "Пожалуйста, попробуйте снова позже.",
+      });
+    }
   };
 
   return (

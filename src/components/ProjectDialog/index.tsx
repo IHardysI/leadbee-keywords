@@ -71,10 +71,10 @@ export function ProjectDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-      <DialogContent className="project-dialog-content rounded-lg p-4">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
+      <DialogContent className="max-w-md p-6 rounded-lg shadow-lg">
+        <DialogHeader className="pb-4">
+          <DialogTitle className="text-xl font-semibold">{title}</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground mt-1">
             {mode === 'create' 
               ? 'Создайте новый проект для отслеживания ключевых слов' 
               : 'Внесите изменения в существующий проект'}

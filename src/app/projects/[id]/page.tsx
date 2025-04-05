@@ -1,5 +1,9 @@
 import { ProjectDetails } from "@/features/ProjectDetails";
 
-export default function ProjectDetailsPage({ params }: { params: { id: string } }) {
-  return <ProjectDetails projectId={params.id} />;
+export default async function ProjectDetailsPage({ params }: { params: { id: string } }) {
+  const paramsData = await Promise.resolve(params);
+  const id = paramsData.id;
+  
+  return <ProjectDetails projectId={id} />;
+  
 } 

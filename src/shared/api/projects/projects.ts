@@ -123,3 +123,57 @@ export async function createProject(data: { name: string; description: string })
     throw error;
   }
 }
+
+/**
+ * Update an existing project
+ * @param id Project ID
+ * @param data Project data (name and description)
+ * @returns Promise with the updated Project
+ */
+export async function updateProject(id: string | number, data: { name: string; description: string }): Promise<Project> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/projects/${id}`, {
+      method: 'PUT',
+      headers: {
+        'accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to update project: ${response.status} ${response.statusText}`);
+    }
+
+    const updatedProject: Project = await response.json();
+    return updatedProject;
+  } catch (error) {
+    console.error(`Error updating project with id ${id}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Delete a project
+ * @param id Project ID
+ * @returns Promise with void
+ */
+export async function deleteProject(id: string | number): Promise<void> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/projects/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete project: ${response.status} ${response.statusText}`);
+    }
+
+    return;
+  } catch (error) {
+    console.error(`Error deleting project with id ${id}:`, error);
+    throw error;
+  }
+}
