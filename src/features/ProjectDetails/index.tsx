@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Calendar, Tag, MessageSquare, Bell, Eye, Send, ArrowLeft, Loader } from "lucide-react";
+import { Calendar, Tag, MessageSquare, Bell, Eye, Send, ArrowLeft, Loader, Trash2 } from "lucide-react";
 import { TimeChart } from "@/features/TimeChart";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -15,6 +15,19 @@ import { ru } from "date-fns/locale";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { DateRange } from "react-day-picker";
 import { getProjectById } from "@/shared/api/projects/projects";
+import { getProjectKeywords, Keyword, addKeywordsToProject, deleteKeyword } from '../../shared/api/keywords';
+import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 // We keep this interface for our internal use with additional UI-specific fields
 interface Project {
@@ -385,10 +398,7 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
           <TabsTrigger value="groups" className="cursor-pointer">Группы</TabsTrigger>
         </TabsList>
         <TabsContent value="keywords" className="mt-4">
-          <div className="p-4 border rounded-md">
-            <h3 className="text-lg font-medium mb-4">Ключевые слова проекта</h3>
-            <p className="text-muted-foreground">Здесь будет отображаться список ключевых слов проекта с метриками и возможностью редактирования.</p>
-          </div>
+          <KeywordsTab projectId={String(project.id)} /> 
         </TabsContent>
         <TabsContent value="groups" className="mt-4">
           <div className="p-4 border rounded-md">
@@ -399,4 +409,168 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
       </Tabs>
     </div>
   );
-} 
+}
+
+// Компонент KeywordsTab
+const KeywordsTab = ({ projectId }: { projectId: string | number }) => {
+  const [keywords, setKeywords] = useState<Keyword[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [keywordsInput, setKeywordsInput] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const fetchKeywords = async () => {
+    try {
+      setIsLoading(true);
+      const data = await getProjectKeywords(String(projectId));
+      setKeywords(data);
+      setError(null);
+    } catch (err) {
+      setError('Ошибка при загрузке ключевых слов');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchKeywords();
+  }, [projectId]);
+
+  const handleAddKeywords = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!keywordsInput.trim()) return;
+    
+    try {
+      setIsSubmitting(true);
+      
+      // Split by comma and trim each keyword
+      const wordsToAdd = keywordsInput
+        .split(',')
+        .map(word => word.trim())
+        .filter(word => word.length > 0);
+      
+      await addKeywordsToProject(projectId, wordsToAdd);
+      
+      // Refresh keywords list
+      await fetchKeywords();
+      
+      // Reset form and close dialog
+      setKeywordsInput("");
+      setIsDialogOpen(false);
+      
+      // Show success toast
+      toast.success("Ключевые слова добавлены", {
+        description: `Добавлено ${wordsToAdd.length} ключевых слов в проект.`
+      });
+      
+    } catch (err) {
+      console.error('Failed to add keywords:', err);
+      setError('Ошибка при добавлении ключевых слов');
+      
+      // Show error toast
+      toast.error("Ошибка добавления ключевых слов", {
+        description: "Пожалуйста, попробуйте снова позже."
+      });
+      
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteKeyword = async (keywordId: string, word: string) => {
+    try {
+      await deleteKeyword(keywordId);
+      // Remove the keyword from the local state
+      setKeywords(keywords.filter(k => k.id !== keywordId));
+      // Show success toast
+      toast.success("Ключевое слово удалено", {
+        description: `Ключевое слово "${word}" было успешно удалено из проекта.`
+      });
+    } catch (err) {
+      console.error('Failed to delete keyword:', err);
+      // Show error toast
+      toast.error("Ошибка удаления ключевого слова", {
+        description: "Пожалуйста, попробуйте снова позже."
+      });
+    }
+  };
+
+  if (isLoading) return (
+    <div className="p-4 flex justify-center items-center min-h-[200px]">
+      <Loader className="h-8 w-8 animate-spin text-primary" />
+    </div>
+  );
+  if (error) return <div className="text-red-500 p-4 min-h-[200px]">{error}</div>;
+
+  return (
+    <div className="p-4 min-h-[200px]">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-semibold">Ключевые слова</h2>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button>Добавить ключевые слова</Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px] flex flex-col">
+            <DialogHeader>
+              <DialogTitle>Добавить ключевые слова</DialogTitle>
+              <DialogDescription>
+                Введите ключевые слова через запятую, которые хотите добавить в проект
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleAddKeywords} className="w-full">
+              <div className="py-4 w-full">
+                <div className="space-y-2 w-full">
+                  <Label htmlFor="keywords">Ключевые слова</Label>
+                  <Textarea
+                    id="keywords"
+                    placeholder="word1, word2, word3"
+                    value={keywordsInput}
+                    onChange={(e) => setKeywordsInput(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="submit" disabled={isSubmitting} className="w-full">
+                  {isSubmitting ? (
+                    <>
+                      <Loader className="mr-2 h-4 w-4 animate-spin" />
+                      Добавление...
+                    </>
+                  ) : (
+                    "Добавить"
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mt-4">
+        {keywords.length === 0 ? (
+          <p>Ключевые слова не найдены</p>
+        ) : (
+          keywords.map((keyword) => (
+            <span 
+              key={keyword.id}
+              className="bg-gray-200 text-gray-800 px-3 py-1 rounded-full text-sm relative group hover:scale-105 transition-all duration-200"
+            >
+              {keyword.word}
+              <button
+                onClick={() => handleDeleteKeyword(keyword.id, keyword.word)}
+                className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full bg-black/20 hover:bg-black/50 cursor-pointer"
+                title="Удалить ключевое слово"
+              >
+                <Trash2 className="h-3.5 w-3.5 text-red-500" />
+              </button>
+            </span>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}; 
