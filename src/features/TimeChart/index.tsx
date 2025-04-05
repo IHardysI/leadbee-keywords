@@ -15,10 +15,9 @@ import {
 import { format, parseISO, isWithinInterval } from "date-fns"
 import { ru } from "date-fns/locale"
 
-interface DataPoint {
-  time: string  // ISO string format
-  value: number
-  [key: string]: any  // Для дополнительных полей
+interface TimeChartData {
+  date: string;
+  value: number;
 }
 
 interface DateRange {
@@ -27,7 +26,7 @@ interface DateRange {
 }
 
 interface TimeChartProps {
-  data: DataPoint[]
+  data: TimeChartData[]
   timeGranularity?: "15m" | "1h" | "1d" | "1w"
   dateRange?: DateRange | null
   color?: string
@@ -45,8 +44,8 @@ export function TimeChart({
   title = "Временной график",
   loading = false,
 }: TimeChartProps) {
-  const [filteredData, setFilteredData] = useState<DataPoint[]>([])
-  const [aggregatedData, setAggregatedData] = useState<DataPoint[]>([])
+  const [filteredData, setFilteredData] = useState<TimeChartData[]>([])
+  const [aggregatedData, setAggregatedData] = useState<TimeChartData[]>([])
   const [tooltipData, setTooltipData] = useState<{ x: number; y: number; value: number; date: Date } | null>(null)
 
   // Фильтрация данных по диапазону дат
@@ -70,17 +69,27 @@ export function TimeChart({
   }, [filteredData, timeGranularity])
 
   // Фильтрация данных по временному диапазону
-  const filterDataByDateRange = (data: DataPoint[], range: DateRange | null): DataPoint[] => {
-    if (!range) return data // Возвращаем все данные, если диапазон не указан
+  const filterDataByDateRange = (data: TimeChartData[], range: DateRange | null): TimeChartData[] => {
+    if (!range) return data // Return all data if range not specified
 
     return data.filter((item) => {
-      const itemDate = parseISO(item.time)
-      return isWithinInterval(itemDate, { start: range.from, end: range.to })
+      // Check if date exists and is valid
+      if (!item.date || typeof item.date !== 'string') {
+        return false;
+      }
+      
+      try {
+        const itemDate = parseISO(item.date)
+        return isWithinInterval(itemDate, { start: range.from, end: range.to })
+      } catch (error) {
+        console.error("Invalid date format:", item.date, error);
+        return false;
+      }
     })
   }
 
   // Агрегация данных по временной гранулярности
-  const aggregateDataByGranularity = (data: DataPoint[], granularity: string): DataPoint[] => {
+  const aggregateDataByGranularity = (data: TimeChartData[], granularity: string): TimeChartData[] => {
     if (data.length === 0) return []
 
     if (granularity === "15m") {
@@ -96,14 +105,14 @@ export function TimeChart({
     const aggregatedMap = new Map()
 
     data.forEach((item) => {
-      const date = parseISO(item.time)
+      const date = parseISO(item.date)
       const timeKey = format(date, formatPattern)
 
       if (!aggregatedMap.has(timeKey)) {
         aggregatedMap.set(timeKey, {
           sum: 0,
           count: 0,
-          time: item.time, // Сохраняем первое время для этого ключа
+          date: item.date, // Сохраняем первое время для этого ключа
         })
       }
 
@@ -114,7 +123,7 @@ export function TimeChart({
 
     // Преобразуем MAP в массив
     return Array.from(aggregatedMap.entries()).map(([timeKey, groupData]: [string, any]) => ({
-      time: groupData.time,
+      date: groupData.date,
       value: Math.round(groupData.sum / groupData.count),
       originalCount: groupData.count,
       aggregationType: granularity,
@@ -171,7 +180,7 @@ export function TimeChart({
           x: chartX,
           y: chartY,
           value: pointData.value,
-          date: parseISO(pointData.time),
+          date: parseISO(pointData.date),
         })
       }
     }
@@ -231,7 +240,7 @@ export function TimeChart({
             }}
           >
             <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-            <XAxis dataKey="time" tickFormatter={formatXAxis} tick={{ fontSize: 12 }} tickCount={6} />
+            <XAxis dataKey="date" tickFormatter={formatXAxis} tick={{ fontSize: 12 }} tickCount={6} />
             <YAxis />
             <Tooltip
               content={<CustomTooltip />}
@@ -267,7 +276,7 @@ export function TimeChart({
             </ReferenceLine>
             {aggregatedData.length > 30 && (
               <Brush
-                dataKey="time"
+                dataKey="date"
                 height={30}
                 stroke={color}
                 tickFormatter={formatXAxis}

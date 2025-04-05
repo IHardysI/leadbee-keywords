@@ -80,7 +80,7 @@ export function ProjectCard({ project, onEdit, onDelete }: ProjectCardProps) {
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" data-ignore-card-click="true">
+                <Button variant="ghost" size="icon" data-ignore-card-click="true" className="cursor-pointer">
                   <MoreHorizontal className="h-4 w-4" />
                   <span className="sr-only">Открыть меню</span>
                 </Button>
@@ -88,14 +88,14 @@ export function ProjectCard({ project, onEdit, onDelete }: ProjectCardProps) {
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Действия</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={(e) => {
+                <DropdownMenuItem className="cursor-pointer" onClick={(e) => {
                   e.stopPropagation();
                   setEditDialogOpen(true);
                 }}>
                   <Edit className="mr-2 h-4 w-4" />
                   Редактировать
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={(e) => {
+                <DropdownMenuItem className="cursor-pointer" onClick={(e) => {
                   e.stopPropagation();
                   handleDelete(project.id);
                 }}>

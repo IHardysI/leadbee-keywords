@@ -16,13 +16,26 @@ export interface GetProjectsParams {
 // Base API URL
 const API_BASE_URL = 'https://leadbee-keywords.dev.reflectai.pro/api/v1';
 
+// Fix any types with proper interfaces
+export interface Keyword {
+  id: string;
+  text: string;
+  // Add other properties as needed
+}
+
+export interface Chat {
+  id: string;
+  name: string;
+  // Add other properties as needed
+}
+
 /**
  * Response interface for project details
  */
 export interface ProjectDetailsResponse {
   project: Project;
-  keywords: any[]; // Update with proper type when needed
-  chats: any[];    // Update with proper type when needed
+  keywords: Keyword[]; // Instead of any[]
+  chats: Chat[];       // Instead of any[]
 }
 
 /**

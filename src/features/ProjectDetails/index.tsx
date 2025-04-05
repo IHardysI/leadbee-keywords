@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,11 +10,11 @@ import { Calendar, Tag, MessageSquare, Bell, Eye, Send, ArrowLeft, Loader } from
 import { TimeChart } from "@/features/TimeChart";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { format, startOfDay, endOfDay, subDays, parseISO } from "date-fns";
+import { format, startOfDay, endOfDay, subDays } from "date-fns";
 import { ru } from "date-fns/locale";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { DateRange } from "react-day-picker";
-import { getProjectById, ProjectDetailsResponse } from "@/shared/api/projects/projects";
+import { getProjectById } from "@/shared/api/projects/projects";
 
 // We keep this interface for our internal use with additional UI-specific fields
 interface Project {
@@ -80,7 +80,7 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
     return "Выберите дату";
   };
   
-  const getEffectiveDateRange = () => {
+  const getEffectiveDateRange = useCallback(() => {
     if (dateRangeMode === "today") {
       const today = new Date();
       return { 
@@ -103,7 +103,7 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
         to: endOfDay(new Date())
       };
     }
-  };
+  }, [dateRangeMode, selectedDate, dateRange]);
   
   useEffect(() => {
     if (!project) return;
@@ -118,7 +118,7 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
       
       while (currentDate <= endDate) {
         data.push({
-          time: currentDate.toISOString(),
+          date: currentDate.toISOString(),
           value: Math.floor(Math.random() * 100) + 10
         });
         
@@ -135,7 +135,7 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
     };
     
     setChartData(generateData());
-  }, [project, timeGranularity, dateRangeMode, selectedDate, dateRange]);
+  }, [project, timeGranularity, dateRangeMode, selectedDate, dateRange, getEffectiveDateRange]);
   
   useEffect(() => {
     const fetchProject = async () => {
@@ -366,7 +366,10 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
         <Card className="mt-4">
           <CardContent className="pt-6">
             <TimeChart 
-              data={chartData}
+              data={chartData.map(item => ({
+                date: item.date,
+                value: item.value
+              }))}
               timeGranularity={timeGranularity}
               dateRange={getEffectiveDateRange()}
               title=""
