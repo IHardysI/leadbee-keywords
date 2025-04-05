@@ -19,14 +19,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Edit, MoreHorizontal, MessageSquare, Tag, Trash2, Eye, Send } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { ProjectDialog } from "@/components/ProjectDialog";
 
 interface Project {
   id: string | number;
   name: string;
   description: string;
-  keywordsCount: number;
-  chatsCount: number;
+  keywordsCount?: number;
+  chatsCount?: number;
   createdAt: string | Date;
   status?: string;
   isTracking?: boolean;  
@@ -40,6 +41,7 @@ interface ProjectCardProps {
 }
 
 export function ProjectCard({ project, onEdit, onDelete }: ProjectCardProps) {
+  const router = useRouter();
   const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const handleEdit = (id: string | number, updatedData: { name: string; description: string }) => {
@@ -50,9 +52,26 @@ export function ProjectCard({ project, onEdit, onDelete }: ProjectCardProps) {
     onDelete(id);
   };
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (!(e.target instanceof HTMLElement && 
+        (e.target.closest('[data-ignore-card-click="true"]') || 
+         e.target.hasAttribute('data-ignore-card-click')))) {
+      
+      // Make sure we're using the correct project ID format
+      const projectId = project.id.toString();
+      
+      // Use the correct path format for the project details page
+      router.push(`/projects/${projectId}`);
+    }
+  };
+
   return (
     <>
-      <Card key={project.id} className="overflow-hidden flex flex-col h-full pb-0">
+      <Card 
+        key={project.id} 
+        className="overflow-hidden flex flex-col h-full pb-0 hover:shadow-md transition-shadow cursor-pointer" 
+        onClick={handleCardClick}
+      >
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between">
             <div>
@@ -61,7 +80,7 @@ export function ProjectCard({ project, onEdit, onDelete }: ProjectCardProps) {
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
+                <Button variant="ghost" size="icon" data-ignore-card-click="true">
                   <MoreHorizontal className="h-4 w-4" />
                   <span className="sr-only">Открыть меню</span>
                 </Button>
@@ -69,11 +88,17 @@ export function ProjectCard({ project, onEdit, onDelete }: ProjectCardProps) {
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>Действия</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setEditDialogOpen(true)}>
+                <DropdownMenuItem onClick={(e) => {
+                  e.stopPropagation();
+                  setEditDialogOpen(true);
+                }}>
                   <Edit className="mr-2 h-4 w-4" />
                   Редактировать
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleDelete(project.id)}>
+                <DropdownMenuItem onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete(project.id);
+                }}>
                   <Trash2 className="mr-2 h-4 w-4" />
                   Удалить
                 </DropdownMenuItem>
@@ -96,7 +121,7 @@ export function ProjectCard({ project, onEdit, onDelete }: ProjectCardProps) {
         <CardFooter className="border-t bg-muted/50 px-6 py-3 mt-auto">
           <div className="flex flex-col w-full text-xs text-muted-foreground">
             <span>Создан {formatDate(project.createdAt)}</span>
-            <div className="flex flex-wrap items-center gap-1 mt-2 min-h-[42px]">
+            <div className="flex flex-wrap items-start gap-1 mt-2 min-h-[42px]">
               {project.isTracking && (
                 <Badge variant="outline" className="flex items-center gap-1 bg-blue-500/10 text-xs py-0 h-5">
                   <Eye className="h-3 w-3" />

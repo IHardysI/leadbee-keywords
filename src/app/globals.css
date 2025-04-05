@@ -126,3 +126,22 @@
     @apply bg-background text-foreground;
   }
 }
+
+[role="dialog"][data-state="open"] {
+  max-width: none !important;
+  max-height: none !important;
+}
+
+[data-dialog-container="true"], 
+[role="dialog"] {
+  display: block !important;
+  align-items: initial !important;
+  justify-content: initial !important;
+}
+
+.project-dialog-content {
+  max-width: 450px !important;
+  width: auto !important;
+  margin: 10% auto !important;
+}
+

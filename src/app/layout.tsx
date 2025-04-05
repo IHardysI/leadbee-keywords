@@ -3,8 +3,8 @@
 import { useState } from "react";
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
-import BreadcrumbsNav from "@/components/BreadcrumbsNav";
 import ThemeToggle from "@/components/ThemeToggle";
+import { Toaster } from "sonner";
 
 export default function RootLayout({
   children,
@@ -60,8 +60,6 @@ export default function RootLayout({
                   </svg>
                 </button>
                 
-                {/* Хлебные крошки */}
-                <BreadcrumbsNav />
               </div>
               
               {/* Переключатель темы */}
@@ -72,6 +70,7 @@ export default function RootLayout({
             <main className="flex-1 p-6 overflow-auto">{children}</main>
           </div>
         </div>
+        <Toaster richColors position="top-right" />
       </body>
     </html>
   );

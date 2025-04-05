@@ -13,7 +13,7 @@ export const routes = [
   {
     label: "Проекты",
     icon: FolderKanban,
-    href: "/",
+    href: "/projects",
     color: "text-violet-500",
   },
   {

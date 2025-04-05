@@ -1,7 +1,7 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -10,12 +10,13 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Loader } from "lucide-react";
 
-interface ProjectFormData {
+export interface ProjectFormData {
   name: string;
   description: string;
 }
@@ -27,91 +28,105 @@ interface ProjectDialogProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   onSubmit: (data: ProjectFormData) => void;
+  isSubmitting?: boolean;
 }
 
-export function ProjectDialog({ 
-  mode, 
-  projectData, 
-  trigger, 
-  open: externalOpen, 
-  onOpenChange: externalOnOpenChange, 
-  onSubmit 
+// Add this CSS-in-JS style at the component level
+const dialogContentStyles = {
+  maxWidth: '450px',
+  width: 'auto',
+  maxHeight: 'auto',
+  display: 'block', // Override flex display
+}
+
+export function ProjectDialog({
+  mode,
+  projectData,
+  trigger,
+  open,
+  onOpenChange,
+  onSubmit,
+  isSubmitting = false
 }: ProjectDialogProps) {
-  const [internalOpen, setInternalOpen] = useState(false)
-  const [name, setName] = useState("")
-  const [description, setDescription] = useState("")
+  const [name, setName] = useState(projectData?.name || "");
+  const [description, setDescription] = useState(projectData?.description || "");
 
-  // Initialize form with project data when editing
+  // Update form when projectData changes (for edit mode)
   useEffect(() => {
-    if (mode === 'edit' && projectData) {
-      setName(projectData.name)
-      setDescription(projectData.description)
+    if (projectData) {
+      setName(projectData.name || "");
+      setDescription(projectData.description || "");
     }
-  }, [mode, projectData, internalOpen])
-
-  // Определяем, какие состояния и обработчики использовать
-  const open = externalOpen !== undefined ? externalOpen : internalOpen
-  const onOpenChange = externalOnOpenChange || setInternalOpen
+  }, [projectData]);
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
+    onSubmit({ name, description });
     
-    onSubmit({ name, description })
-    
-    setInternalOpen(false)
-    
-    // Only reset form for create mode, not edit mode
-    if (mode === 'create') {
-      setName("")
-      setDescription("")
+    if (onOpenChange) {
+      onOpenChange(false);
     }
-  }
+    
+    if (mode === 'create') {
+      setName("");
+      setDescription("");
+    }
+  };
 
-  const isEditMode = mode === 'edit'
-  const title = isEditMode ? "Редактирование проекта" : "Создание проекта"
-  const buttonText = isEditMode ? "Сохранить изменения" : "Создать проект"
-  const dialogDescription = isEditMode 
-    ? "Измените информацию о проекте" 
-    : "Создайте новый проект для отслеживания ключевых слов в чатах."
+  const title = mode === 'create' ? 'Создать проект' : 'Редактировать проект';
+  const submitText = mode === 'create' ? 'Создать' : 'Сохранить';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="project-dialog-content rounded-lg p-4">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>
+            {mode === 'create' 
+              ? 'Создайте новый проект для отслеживания ключевых слов' 
+              : 'Внесите изменения в существующий проект'}
+          </DialogDescription>
+        </DialogHeader>
         <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>{title}</DialogTitle>
-            <DialogDescription>
-              {dialogDescription}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="name">Название</Label>
+          <div className="space-y-4 py-3">
+            <div className="space-y-2">
+              <Label htmlFor="name">
+                Название
+              </Label>
               <Input
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Название проекта"
                 required
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="description">Описание</Label>
+            <div className="space-y-2">
+              <Label htmlFor="description">
+                Описание
+              </Label>
               <Textarea
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Описание проекта"
-                className="resize-none"
+                rows={3}
               />
             </div>
           </div>
           <DialogFooter>
-            <Button type="submit" className="hover:cursor-pointer">{buttonText}</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader className="mr-2 h-4 w-4 animate-spin" />
+                  {mode === 'create' ? 'Создание...' : 'Сохранение...'}
+                </>
+              ) : (
+                submitText
+              )}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 } 
