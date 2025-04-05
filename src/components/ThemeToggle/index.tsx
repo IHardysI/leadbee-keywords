@@ -7,11 +7,9 @@ export default function ThemeToggle() {
   const [isDarkMode, setIsDarkMode] = useState(true);
 
   useEffect(() => {
-    // Проверяем сохраненную тему в localStorage
     const savedTheme = localStorage.getItem('theme');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
-    // Определяем начальное состояние темы
     let initialDarkMode;
     if (savedTheme === 'dark') {
       initialDarkMode = true;
@@ -21,7 +19,6 @@ export default function ThemeToggle() {
       initialDarkMode = true;
     }
     
-    // Применяем тему к документу
     if (initialDarkMode) {
       document.documentElement.classList.add('dark');
       document.documentElement.classList.remove('light');
@@ -52,7 +49,7 @@ export default function ThemeToggle() {
   return (
     <button 
       onClick={toggleTheme}
-      className="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
+      className="p-2 rounded-md hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors cursor-pointer"
       aria-label="Переключить тему"
     >
       {isDarkMode ? (

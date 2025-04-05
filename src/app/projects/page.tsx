@@ -5,7 +5,7 @@ import { ProjectCard } from "@/components/ProjectCard";
 import { Button } from "@/components/ui/button";
 import { Plus, Loader } from "lucide-react";
 import { ProjectDialog } from "@/components/ProjectDialog";
-import { getProjects, createProject, Project as ApiProject } from "@/shared/api/projects/projects";
+import { getProjects, createProject } from "@/shared/api/projects/projects";
 import { toast } from "sonner";
 
 interface ProjectCardData {
@@ -152,7 +152,7 @@ export default function ProjectsPage() {
 
       <Button 
         onClick={() => setCreateDialogOpen(true)}
-        className="fixed bottom-[50px] right-[50px] rounded-full shadow-lg h-12 w-12 p-0"
+        className="fixed bottom-[50px] right-[50px] rounded-full shadow-lg h-12 w-12 p-0 hover:cursor-pointer"
         size="icon"
       >
         <Plus className="h-6 w-6" />

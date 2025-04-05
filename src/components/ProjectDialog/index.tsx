@@ -31,14 +31,6 @@ interface ProjectDialogProps {
   isSubmitting?: boolean;
 }
 
-// Add this CSS-in-JS style at the component level
-const dialogContentStyles = {
-  maxWidth: '450px',
-  width: 'auto',
-  maxHeight: 'auto',
-  display: 'block', // Override flex display
-}
-
 export function ProjectDialog({
   mode,
   projectData,
