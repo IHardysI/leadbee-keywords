@@ -1,9 +1,9 @@
 // Define Project interface based on the API response
 export interface Project {
-  id: string;
+  id: string | number;
   name: string;
   description: string;
-  created_at: string;
+  created_at?: string | Date;
   updated_at: string;
 }
 
@@ -20,13 +20,13 @@ const API_BASE_URL = 'https://leadbee-keywords.dev.reflectai.pro/api/v1';
 export interface Keyword {
   id: string;
   text: string;
-  // Add other properties as needed
+  // Add other required fields
 }
 
 export interface Chat {
   id: string;
   name: string;
-  // Add other properties as needed
+  // Add other required fields
 }
 
 /**
@@ -34,8 +34,8 @@ export interface Chat {
  */
 export interface ProjectDetailsResponse {
   project: Project;
-  keywords: Keyword[]; // Instead of any[]
-  chats: Chat[];       // Instead of any[]
+  keywords: Keyword[];
+  chats: Chat[];
 }
 
 /**

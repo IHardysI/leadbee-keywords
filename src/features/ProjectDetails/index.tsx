@@ -152,7 +152,7 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
           description: projectDetails.project.description,
           keywordsCount: projectDetails.keywords.length,
           chatsCount: projectDetails.chats.length,
-          createdAt: projectDetails.project.created_at,
+          createdAt: projectDetails.project.created_at || new Date(),
           status: "Активен", // Default status
           isTracking: true,  // Default UI state
           isSending: false   // Default UI state
