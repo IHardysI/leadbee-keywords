@@ -17,9 +17,9 @@ export const routes = [
     color: "text-violet-500",
   },
   {
-    label: "Группы",
+    label: "Чаты",
     icon: Users,
-    href: "/groups",
+    href: "/chats",
     color: "text-orange-500",
   },
 ];

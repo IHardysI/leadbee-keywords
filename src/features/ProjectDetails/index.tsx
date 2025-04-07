@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Calendar, Tag, MessageSquare, Bell, Eye, Send, ArrowLeft, Loader, Trash2 } from "lucide-react";
+import { Calendar, Tag, MessageSquare, Bell, Eye, Send, ArrowLeft, Loader, Trash2, Search } from "lucide-react";
 import { TimeChart } from "@/features/TimeChart";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -28,6 +28,22 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { getChatsByProjectId, ChatGroup, getTelegramGroups, TelegramGroupsResponse, addChatToProject, deleteChat } from "../../shared/api/chats";
+import Link from "next/link";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // We keep this interface for our internal use with additional UI-specific fields
 interface Project {
@@ -395,16 +411,13 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
       <Tabs defaultValue="keywords">
         <TabsList className="cursor-pointer">
           <TabsTrigger value="keywords" className="cursor-pointer">Ключевые слова</TabsTrigger>
-          <TabsTrigger value="groups" className="cursor-pointer">Группы</TabsTrigger>
+          <TabsTrigger value="groups" className="cursor-pointer">Чаты</TabsTrigger>
         </TabsList>
         <TabsContent value="keywords" className="mt-4">
           <KeywordsTab projectId={String(project.id)} /> 
         </TabsContent>
         <TabsContent value="groups" className="mt-4">
-          <div className="p-4 border rounded-md">
-            <h3 className="text-lg font-medium mb-4">Группы проекта</h3>
-            <p className="text-muted-foreground">Здесь будет отображаться список групп, в которых ведется мониторинг с дополнительной информацией.</p>
-          </div>
+          <GroupsTab projectId={String(project.id)} />
         </TabsContent>
       </Tabs>
     </div>
@@ -499,14 +512,14 @@ const KeywordsTab = ({ projectId }: { projectId: string | number }) => {
   };
 
   if (isLoading) return (
-    <div className="p-4 flex justify-center items-center min-h-[200px]">
+    <div className="flex justify-center items-center">
       <Loader className="h-8 w-8 animate-spin text-primary" />
     </div>
   );
   if (error) return <div className="text-red-500 p-4 min-h-[200px]">{error}</div>;
 
   return (
-    <div className="p-4 min-h-[200px]">
+    <div className="">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold">Ключевые слова</h2>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -571,6 +584,389 @@ const KeywordsTab = ({ projectId }: { projectId: string | number }) => {
           ))
         )}
       </div>
+    </div>
+  );
+};
+
+const GroupsTab = ({ projectId }: { projectId: string | number }) => {
+  const [groups, setGroups] = useState<ChatGroup[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [telegramGroups, setTelegramGroups] = useState<TelegramGroupsResponse['groups']>([]);
+  const [loadingTelegramGroups, setLoadingTelegramGroups] = useState(false);
+  const [selectedChat, setSelectedChat] = useState<string | null>(null);
+  const [addingChat, setAddingChat] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredTelegramGroups, setFilteredTelegramGroups] = useState<TelegramGroupsResponse['groups']>([]);
+  const [telegramGroupsPage, setTelegramGroupsPage] = useState(1);
+  const [hasMoreGroups, setHasMoreGroups] = useState(false);
+  const itemsPerPage = 50;
+  const [chatToDelete, setChatToDelete] = useState<ChatGroup | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Fetch project groups
+  useEffect(() => {
+    const fetchGroups = async () => {
+      try {
+        setIsLoading(true);
+        const data = await getChatsByProjectId(String(projectId));
+        setGroups(data);
+        setError(null);
+      } catch (err) {
+        setError('Ошибка при загрузке групп');
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchGroups();
+  }, [projectId]);
+
+  const handleOpenDialog = async () => {
+    setIsDialogOpen(true);
+    setSelectedChat(null);
+    setTelegramGroupsPage(1);
+    setTelegramGroups([]);
+    
+    try {
+      setLoadingTelegramGroups(true);
+      await fetchMoreGroups(1);
+    } catch (err) {
+      console.error('Error fetching Telegram groups:', err);
+      toast.error("Ошибка", {
+        description: "Не удалось загрузить список Telegram групп"
+      });
+    } finally {
+      setLoadingTelegramGroups(false);
+    }
+  };
+
+  // Function to fetch more groups
+  const fetchMoreGroups = async (page: number) => {
+    try {
+      const data = await getTelegramGroups(page, itemsPerPage);
+      
+      if (data.status === "success") {
+        // Append new groups to existing ones, avoiding duplicates
+        setTelegramGroups(prev => {
+          const newGroups = data.groups.filter(
+            group => !prev.some(existing => existing.id === group.id)
+          );
+          return [...prev, ...newGroups];
+        });
+        
+        // Check if there are more groups to load
+        setHasMoreGroups(data.total_count > page * itemsPerPage);
+      }
+    } catch (err) {
+      console.error('Error fetching more Telegram groups:', err);
+      throw err;
+    }
+  };
+
+  // Handle loading more groups
+  const handleLoadMore = async () => {
+    const nextPage = telegramGroupsPage + 1;
+    setLoadingTelegramGroups(true);
+    
+    try {
+      await fetchMoreGroups(nextPage);
+      setTelegramGroupsPage(nextPage);
+    } catch (err) {
+      toast.error("Ошибка", {
+        description: "Не удалось загрузить больше групп"
+      });
+    } finally {
+      setLoadingTelegramGroups(false);
+    }
+  };
+
+  // Handle chat selection
+  const handleChatSelection = (chatId: string) => {
+    setSelectedChat(chatId === selectedChat ? null : chatId);
+  };
+
+  // Handle adding chat to project
+  const handleAddChat = async () => {
+    if (!selectedChat) return;
+    
+    const selectedGroup = telegramGroups.find(group => group.id === selectedChat);
+    if (!selectedGroup) return;
+    
+    try {
+      setAddingChat(true);
+      
+      await addChatToProject({
+        chat_id: selectedGroup.id,
+        chat_name: selectedGroup.title,
+        chat_type: "test",
+        project_id: String(projectId)
+      });
+      
+      // Refresh the list of groups
+      const updatedGroups = await getChatsByProjectId(String(projectId));
+      setGroups(updatedGroups);
+      
+      toast.success("Успех", {
+        description: "Чат успешно добавлен в проект",
+      });
+      
+      setIsDialogOpen(false);
+    } catch (err) {
+      console.error('Error adding chat to project:', err);
+      toast.error("Ошибка", {
+        description: "Не удалось добавить чат в проект",
+      });
+    } finally {
+      setAddingChat(false);
+    }
+  };
+
+  // Filter groups based on search term
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredTelegramGroups(telegramGroups);
+      return;
+    }
+    
+    const term = searchTerm.toLowerCase().trim();
+    const filtered = telegramGroups.filter(group => 
+      group.title.toLowerCase().includes(term)
+    );
+    setFilteredTelegramGroups(filtered);
+  }, [searchTerm, telegramGroups]);
+
+  // Handle delete chat
+  const handleDeleteChat = async () => {
+    if (!chatToDelete) return;
+    
+    try {
+      setIsDeleting(true);
+      await deleteChat(chatToDelete.id);
+      
+      // Update the groups list
+      setGroups(groups.filter(group => group.id !== chatToDelete.id));
+      
+      toast.success("Успех", {
+        description: "Чат успешно удален из проекта",
+      });
+      
+      setChatToDelete(null);
+    } catch (err) {
+      console.error('Error deleting chat:', err);
+      toast.error("Ошибка", {
+        description: "Не удалось удалить чат из проекта",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  if (isLoading) return (
+    <div className="p-4 flex justify-center items-center min-h-[200px]">
+      <Loader className="h-8 w-8 animate-spin text-primary" />
+    </div>
+  );
+  
+  if (error) return <div className="text-red-500 p-4 min-h-[200px]">{error}</div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold">Группы проекта</h2>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button onClick={handleOpenDialog}>Добавить группу</Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[625px] w-full">
+            <DialogHeader>
+              <DialogTitle>Добавить группу в проект</DialogTitle>
+              <DialogDescription>
+                Выберите Telegram группу, которую хотите добавить в проект
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="py-2 mb-2">
+              <SearchInput 
+                value={searchTerm}
+                onChange={setSearchTerm}
+              />
+            </div>
+            
+            <div className="">
+              {loadingTelegramGroups && telegramGroups.length === 0 ? (
+                <div className="flex justify-center py-8">
+                  <Loader className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : filteredTelegramGroups.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  {searchTerm ? 
+                    `Telegram группы не найдены по запросу "${searchTerm}"` : 
+                    "Telegram группы не найдены"}
+                </div>
+              ) : (
+                <div className="flex flex-col">
+                  <div className="max-h-[400px] overflow-y-auto border rounded-md w-full">
+                    <div className="w-full overflow-x-hidden">
+                      <Table className="w-full table-fixed">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-12"></TableHead>
+                            <TableHead className="w-[60%]">Название</TableHead>
+                            <TableHead className="w-[30%]">Тип</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredTelegramGroups.map((group) => (
+                            <TableRow 
+                              key={group.id} 
+                              className="cursor-pointer hover:bg-gray-50/10"
+                              onClick={() => handleChatSelection(group.id)}
+                            >
+                              <TableCell className="text-center">
+                                <Checkbox 
+                                  checked={selectedChat === group.id}
+                                  onCheckedChange={() => handleChatSelection(group.id)}
+                                />
+                              </TableCell>
+                              <TableCell className="font-medium truncate max-w-[250px]">
+                                {group.title}
+                              </TableCell>
+                              <TableCell>
+                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-semibold">
+                                  test
+                                </span>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                  
+                  {/* Load more button */}
+                  {hasMoreGroups && (
+                    <div className="mt-4 flex justify-center">
+                      <Button 
+                        variant="outline" 
+                        onClick={handleLoadMore}
+                        disabled={loadingTelegramGroups}
+                        className="transition-colors duration-300 hover:bg-black hover:text-white"
+                      >
+                        {loadingTelegramGroups ? (
+                          <>
+                            <Loader className="mr-2 h-4 w-4 animate-spin" />
+                            Загрузка...
+                          </>
+                        ) : (
+                          "Загрузить ещё"
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            <DialogFooter>
+              <Button 
+                onClick={handleAddChat} 
+                disabled={!selectedChat || addingChat}
+              >
+                {addingChat ? (
+                  <>
+                    <Loader className="mr-2 h-4 w-4 animate-spin" />
+                    Добавление...
+                  </>
+                ) : (
+                  "Добавить в проект"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Alert Dialog for delete confirmation */}
+      <AlertDialog open={!!chatToDelete} onOpenChange={(open) => !open && setChatToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Вы уверены?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Это действие удалит чат "{chatToDelete?.chat_name}" из проекта. Это действие нельзя отменить.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteChat}
+              disabled={isDeleting}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader className="mr-2 h-4 w-4 animate-spin" />
+                  Удаление...
+                </>
+              ) : (
+                "Удалить"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Groups table */}
+      {groups.length === 0 ? (
+        <div className="p-4 text-center text-muted-foreground">
+          В этом проекте нет групп. Нажмите "Добавить группу", чтобы добавить первую группу.
+        </div>
+      ) : (
+        <div className="rounded-md border overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Название</TableHead>
+                <TableHead>Тип</TableHead>
+                <TableHead>Дата добавления</TableHead>
+                <TableHead>Обновлено последний раз</TableHead>
+                <TableHead className="w-[100px]">Действия</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {groups.map((group) => (
+                <TableRow key={group.id} className="hover:bg-gray-50/10">
+                  <TableCell className="font-medium">
+                    {group.chat_name}
+                  </TableCell>
+                  <TableCell>{group.chat_type}</TableCell>
+                  <TableCell>
+                    {format(new Date(group.created_at), 'dd.MM.yyyy')}
+                  </TableCell>
+                  <TableCell>
+                    {format(new Date(group.updated_at), 'dd.MM.yyyy')}
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost" 
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setChatToDelete(group);
+                      }}
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   );
 }; 
