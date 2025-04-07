@@ -69,14 +69,16 @@ export function ProjectCard({ project, onEdit, onDelete }: ProjectCardProps) {
     <>
       <Card 
         key={project.id} 
-        className="overflow-hidden flex flex-col h-full pb-0 hover:shadow-md transition-shadow cursor-pointer" 
+        className="overflow-hidden flex flex-col h-full pb-0 hover:shadow-md transition-shadow cursor-pointer gap-4" 
         onClick={handleCardClick}
       >
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between">
             <div>
               <CardTitle>{project.name}</CardTitle>
-              <CardDescription className="mt-1 line-clamp-2">{project.description}</CardDescription>
+              <CardDescription className="mt-1 line-clamp-2 h-10 overflow-hidden text-ellipsis">
+                {project.description}
+              </CardDescription>
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
