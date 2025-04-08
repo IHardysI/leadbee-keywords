@@ -181,3 +181,33 @@ export async function deleteChat(chatId: string): Promise<void> {
     throw error;
   }
 }
+
+/**
+ * Create a new Telegram group by join link
+ * @param joinLink The Telegram group join link
+ * @returns Promise with the created group data
+ */
+export async function createGroup(joinLink: string): Promise<any> {
+  try {
+    const response = await fetch(
+      'https://python-platforma-leadbee-freelance.reflectai.pro/group', 
+      {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ join_link: joinLink }),
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error('Error creating group:', error);
+    throw error;
+  }
+}
