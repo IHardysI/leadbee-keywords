@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Calendar, Tag, MessageSquare, Bell, Eye, Send, ArrowLeft, Loader, Trash2, Search } from "lucide-react";
+import { Calendar, Tag, MessageSquare, Bell, Eye, EyeOff, Send, ArrowLeft, Loader, Trash2, Search } from "lucide-react";
 import { TimeChart } from "@/features/TimeChart";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -82,6 +82,10 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
     to: new Date(),
   });
   const [chartData, setChartData] = useState<any[]>([]);
+  
+  const [isStartingAnalysis, setIsStartingAnalysis] = useState(false);
+  const [isStoppingAnalysis, setIsStoppingAnalysis] = useState(false);
+  const [isRunningManualAnalysis, setIsRunningManualAnalysis] = useState(false);
   
   const handleDateRangeModeChange = (mode: string) => {
     setDateRangeMode(mode);
@@ -215,6 +219,79 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
     fetchProject();
   }, [projectId]);
   
+  const handleStartAnalysis = async () => {
+    try {
+      setIsStartingAnalysis(true);
+      // Mock delay to simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Mock updating the analysis data
+      if (analysisData) {
+        setAnalysisData({
+          ...analysisData,
+          is_running: true
+        });
+      }
+      
+      toast.success("Анализ запущен", {
+        description: "Отслеживание данных началось"
+      });
+    } catch (error) {
+      console.error('Error starting analysis:', error);
+      toast.error("Ошибка", {
+        description: "Не удалось запустить анализ"
+      });
+    } finally {
+      setIsStartingAnalysis(false);
+    }
+  };
+
+  const handleStopAnalysis = async () => {
+    try {
+      setIsStoppingAnalysis(true);
+      // Mock delay to simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Mock updating the analysis data
+      if (analysisData) {
+        setAnalysisData({
+          ...analysisData,
+          is_running: false
+        });
+      }
+      
+      toast.success("Анализ остановлен", {
+        description: "Отслеживание данных прекращено"
+      });
+    } catch (error) {
+      console.error('Error stopping analysis:', error);
+      toast.error("Ошибка", {
+        description: "Не удалось остановить анализ"
+      });
+    } finally {
+      setIsStoppingAnalysis(false);
+    }
+  };
+
+  const handleRunManualAnalysis = async () => {
+    try {
+      setIsRunningManualAnalysis(true);
+      // Mock delay to simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      toast.success("Ручной анализ запущен", {
+        description: "Анализ будет выполнен в ближайшее время"
+      });
+    } catch (error) {
+      console.error('Error running manual analysis:', error);
+      toast.error("Ошибка", {
+        description: "Не удалось запустить ручной анализ"
+      });
+    } finally {
+      setIsRunningManualAnalysis(false);
+    }
+  };
+  
   if (loading) {
     return (
       <div className="container">
@@ -262,10 +339,19 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
       </div>
       
       <div className="flex flex-wrap gap-2 mb-6">
-        {project.isTracking && (
-          <Badge variant="outline" className="flex items-center gap-1 bg-blue-500/10 py-1">
-            <Eye className="h-3 w-3" />
-            <span>Отслеживается</span>
+        {analysisData !== null && (
+          <Badge variant="outline" className={`flex items-center gap-1 py-1 ${analysisData.is_running ? "bg-blue-500/10" : "bg-gray-500/10"}`}>
+            {analysisData.is_running ? (
+              <>
+                <Eye className="h-3 w-3" />
+                <span>Отслеживается</span>
+              </>
+            ) : (
+              <>
+                <EyeOff className="h-3 w-3" />
+                <span>Не отслеживается</span>
+              </>
+            )}
           </Badge>
         )}
         {project.isSending && (
@@ -275,6 +361,75 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
           </Badge>
         )}
         <Badge variant="outline" className="py-1">{project.status || "Активен"}</Badge>
+      </div>
+      
+      <div className="bg-muted/30 rounded-lg p-4 mb-6">
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          <div>
+            <h3 className="text-lg font-medium mb-1">Управление анализом</h3>
+            <p className="text-sm text-muted-foreground">Запуск, остановка и ручной запуск анализа данных</p>
+          </div>
+          
+          <div className="flex flex-wrap gap-2">
+            {analysisData?.is_running ? (
+              <Button 
+                variant="outline" 
+                onClick={handleStopAnalysis} 
+                disabled={isStoppingAnalysis}
+                className="bg-red-100 hover:bg-red-200 text-red-700 border-red-200"
+              >
+                {isStoppingAnalysis ? (
+                  <>
+                    <Loader className="mr-2 h-4 w-4 animate-spin" />
+                    Останавливается...
+                  </>
+                ) : (
+                  <>
+                    <EyeOff className="mr-2 h-4 w-4" />
+                    Остановить анализ
+                  </>
+                )}
+              </Button>
+            ) : (
+              <Button 
+                variant="outline" 
+                onClick={handleStartAnalysis}
+                disabled={isStartingAnalysis}
+                className="bg-blue-100 hover:bg-blue-200 border-blue-200"
+              >
+                {isStartingAnalysis ? (
+                  <>
+                    <Loader className="mr-2 h-4 w-4 animate-spin" />
+                    Запускается...
+                  </>
+                ) : (
+                  <>
+                    <Eye className="mr-2 h-4 w-4" />
+                    Запустить анализ
+                  </>
+                )}
+              </Button>
+            )}
+            
+            <Button 
+              variant="outline" 
+              onClick={handleRunManualAnalysis}
+              disabled={isRunningManualAnalysis}
+            >
+              {isRunningManualAnalysis ? (
+                <>
+                  <Loader className="mr-2 h-4 w-4 animate-spin" />
+                  Запускается...
+                </>
+              ) : (
+                <>
+                  <Calendar className="mr-2 h-4 w-4" />
+                  Ручной анализ
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
