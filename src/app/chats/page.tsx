@@ -245,6 +245,7 @@ export default function ChatsPage() {
                 <TableRow>
                   <TableHead>Название</TableHead>
                   <TableHead>Тип</TableHead>
+                  <TableHead>Аккаунты</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -266,6 +267,19 @@ export default function ChatsPage() {
                             test
                           </span>
                         </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {group.joined_accounts && group.joined_accounts.length > 0 ? (
+                              group.joined_accounts.map((account, idx) => (
+                                <span key={idx} className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-semibold">
+                                  {account}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-xs text-gray-500">Нет аккаунтов</span>
+                            )}
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))
                   : filteredGroups.map((group) => (
@@ -284,6 +298,19 @@ export default function ChatsPage() {
                           <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-semibold">
                             test
                           </span>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {group.joined_accounts && group.joined_accounts.length > 0 ? (
+                              group.joined_accounts.map((account, idx) => (
+                                <span key={idx} className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-semibold">
+                                  {account}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-xs text-gray-500">Нет аккаунтов</span>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))

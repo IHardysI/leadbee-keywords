@@ -44,6 +44,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { getAnalysisStatus } from "@/shared/api/analysis";
 
 // We keep this interface for our internal use with additional UI-specific fields
 interface Project {
@@ -66,6 +67,12 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [analysisData, setAnalysisData] = useState<{
+    matches_found: number;
+    is_running: boolean;
+    keywords_count: number;
+    chats_count: number;
+  } | null>(null);
   
   const [timeGranularity, setTimeGranularity] = useState<TimeGranularity>("1d");
   const [dateRangeMode, setDateRangeMode] = useState<string>("today");
@@ -188,6 +195,15 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
         };
         
         setProject(projectData);
+        
+        // Fetch analysis status
+        try {
+          const analysisStatus = await getAnalysisStatus(projectId);
+          setAnalysisData(analysisStatus);
+        } catch (analysisError) {
+          console.error('Error fetching analysis status:', analysisError);
+          // Don't set error state as the main project data loaded successfully
+        }
       } catch (error) {
         console.error('Error fetching project:', error);
         setError("Failed to load project details. Please try again later.");
@@ -226,9 +242,7 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
     return <div className="container p-6">Проект не найден</div>;
   }
   
-  const matchesCount = project.matchesCount || Math.floor(Math.random() * 1000) + 100;
-  const growthPercent = (Math.random() * 20 - 5).toFixed(1);
-  const isPositiveGrowth = parseFloat(growthPercent) > 0;
+  const matchesCount = analysisData?.matches_found ?? 0;
   
   return (
     <div className="container" suppressHydrationWarning>
@@ -271,9 +285,6 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{matchesCount}</div>
-            <p className={`text-xs ${isPositiveGrowth ? 'text-green-600' : 'text-red-600'}`}>
-              {isPositiveGrowth ? '+' : ''}{growthPercent}% с прошлой недели
-            </p>
           </CardContent>
         </Card>
         <Card>
