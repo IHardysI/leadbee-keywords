@@ -12,8 +12,8 @@ interface ProjectCardData {
   id: string | number;
   name: string;
   description: string;
-  keywordsCount?: number;  // Made optional
-  chatsCount?: number;     // Made optional
+  keywordsCount?: number; 
+  chatsCount?: number;   
   createdAt: string | Date;
   status?: string;
   isTracking?: boolean;  
@@ -37,8 +37,8 @@ export default function ProjectsPage() {
           id: project.id,
           name: project.name,
           description: project.description,
-          keywordsCount: 0, // These could be updated if the API provides this data
-          chatsCount: 0,    // These could be updated if the API provides this data
+          keywordsCount: 0, 
+          chatsCount: 0,    
           createdAt: project.created_at || new Date(),
           status: "Активен"
         }));
@@ -181,11 +181,9 @@ export default function ProjectsPage() {
 
           {projects.length === 0 && (
             <div className="text-center py-12">
-              <p className="text-muted-foreground mb-4">У вас пока нет проектов</p>
-              <Button onClick={() => setCreateDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Создать первый проект
-              </Button>
+              <p className="text-muted-foreground mb-4">
+                У вас пока нет проектов
+              </p>
             </div>
           )}
         </>

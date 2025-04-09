@@ -46,7 +46,6 @@ export function TimeChart({
 }: TimeChartProps) {
   const [filteredData, setFilteredData] = useState<TimeChartData[]>([])
   const [aggregatedData, setAggregatedData] = useState<TimeChartData[]>([])
-  const [tooltipData, setTooltipData] = useState<{ x: number; y: number; value: number; date: Date } | null>(null)
 
   // Фильтрация данных по диапазону дат
   useEffect(() => {
@@ -166,30 +165,6 @@ export function TimeChart({
   // Находим максимальное значение для линии отсчёта
   const maxValue = Math.max(...aggregatedData.map((item) => item.value || 0), 0)
 
-  // Обработчики событий мыши для тултипов
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const chart = e.currentTarget.getBoundingClientRect()
-    const chartX = e.clientX - chart.left
-    const chartY = e.clientY - chart.top
-
-    // Показываем тултип только рядом с точкой данных
-    if (e.target instanceof SVGCircleElement) {
-      const pointData = aggregatedData[Number(e.target.getAttribute("data-index") || 0)]
-      if (pointData) {
-        setTooltipData({
-          x: chartX,
-          y: chartY,
-          value: pointData.value,
-          date: parseISO(pointData.date),
-        })
-      }
-    }
-  }
-
-  const handleMouseLeave = () => {
-    setTooltipData(null)
-  }
-
   // Если данные загружаются или отсутствуют
   if (loading) {
     return (
@@ -215,20 +190,7 @@ export function TimeChart({
   return (
     <div className="w-full">
       {title && <h3 className="text-lg font-medium mb-4">{title}</h3>}
-      <div className="h-[400px] w-full relative" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave} style={{ height }}>
-        {tooltipData && (
-          <div
-            className="absolute z-50 bg-white border border-gray-200 shadow-lg rounded-md p-3"
-            style={{
-              left: `${tooltipData.x + 10}px`,
-              top: `${tooltipData.y - 70}px`,
-              pointerEvents: "none",
-            }}
-          >
-            <div className="text-sm text-gray-500">{format(tooltipData.date, "d MMMM yyyy HH:mm", { locale: ru })}</div>
-            <div className="text-xl font-bold mt-1" style={{ color }}>Найдено совпадений: {tooltipData.value}</div>
-          </div>
-        )}
+      <div className="h-[400px] w-full relative" style={{ height }}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
             data={aggregatedData}

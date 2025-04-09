@@ -124,12 +124,12 @@ export async function getAllChats(): Promise<ChatGroups[]> {
  * @param chatData The chat data to add
  * @returns Promise containing the added chat
  */
-export async function addChatToProject(chatData: {
-  chat_id: string;
-  chat_name: string;
-  chat_type: string;
-  project_id: string;
-}): Promise<ChatGroup> {
+export const addChatToProject = async (params: { 
+  project_id: string, 
+  chat_id: string,
+  chat_name: string,
+  chat_type: string
+}): Promise<any> => {
   try {
     const response = await fetch(
       'https://leadbee-keywords.dev.reflectai.pro/api/v1/chats/',
@@ -139,7 +139,7 @@ export async function addChatToProject(chatData: {
           'accept': 'application/json',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(chatData),
+        body: JSON.stringify(params),
       }
     );
     
@@ -152,17 +152,17 @@ export async function addChatToProject(chatData: {
     console.error('Error adding chat to project:', error);
     throw error;
   }
-}
+};
 
 /**
  * Delete a chat from a project
- * @param chatId The ID of the chat to delete
+ * @param params Object containing the chat ID to delete
  * @returns Promise with void on success
  */
-export async function deleteChat(chatId: string): Promise<void> {
+export const deleteChat = async (params: { project_id: string, chat_id: string }): Promise<any> => {
   try {
     const response = await fetch(
-      `https://leadbee-keywords.dev.reflectai.pro/api/v1/chats/${chatId}`,
+      `https://leadbee-keywords.dev.reflectai.pro/api/v1/chats/${params.chat_id}`,
       {
         method: 'DELETE',
         headers: {
@@ -180,7 +180,7 @@ export async function deleteChat(chatId: string): Promise<void> {
     console.error('Error deleting chat:', error);
     throw error;
   }
-}
+};
 
 /**
  * Create a new Telegram group by join link

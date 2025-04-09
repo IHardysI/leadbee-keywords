@@ -44,7 +44,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { getAnalysisStatus } from "@/shared/api/analysis";
+import { 
+  getAnalysisStatus, 
+  getHierarchicalStats, 
+  TimeGrouping, 
+  startAnalysis, 
+  stopAnalysis,
+  runOneTimeAnalysis, 
+  getOneTimeAnalysisStatus 
+} from "@/shared/api/analysis";
 
 // We keep this interface for our internal use with additional UI-specific fields
 interface Project {
@@ -86,6 +94,39 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
   const [isStartingAnalysis, setIsStartingAnalysis] = useState(false);
   const [isStoppingAnalysis, setIsStoppingAnalysis] = useState(false);
   const [isRunningManualAnalysis, setIsRunningManualAnalysis] = useState(false);
+  
+  const [chartTabValue, setChartTabValue] = useState("realtime");
+  const [analysisTaskId, setAnalysisTaskId] = useState<string | null>(null);
+  const [isSelectingDateRange, setIsSelectingDateRange] = useState(false);
+  const [analysisDateRange, setAnalysisDateRange] = useState<DateRange>({
+    from: subDays(new Date(), 7),
+    to: new Date(),
+  });
+  const [isLoadingAnalysisResults, setIsLoadingAnalysisResults] = useState(false);
+  const [hasAnalysisResults, setHasAnalysisResults] = useState(false);
+  
+  const [isChartLoading, setIsChartLoading] = useState(false);
+  
+  // Add a state for chart stats
+  const [chartStats, setChartStats] = useState({
+    totalMessages: 0,
+    totalKeywords: 0
+  });
+  
+  // Create a new state to track when data should be refreshed
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  
+  // Add new state variables
+  const [analysisTask, setAnalysisTask] = useState<{
+    taskId: string;
+    status: string;
+    polling: boolean;
+  } | null>(null);
+  
+  // Function to trigger a refresh
+  const triggerRefresh = () => {
+    setRefreshTrigger(prev => prev + 1);
+  };
   
   const handleDateRangeModeChange = (mode: string) => {
     setDateRangeMode(mode);
@@ -148,15 +189,54 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
   useEffect(() => {
     if (!project) return;
     
+    const fetchChartData = async () => {
+      try {
+        setIsChartLoading(true);
+    
     const range = getEffectiveDateRange();
     const startDate = range.from;
     const endDate = range.to;
     
+        // Map UI time granularity to API time grouping
+        let groupBy: TimeGrouping = 'day';
+        if (timeGranularity === "15m") groupBy = '15min';
+        else if (timeGranularity === "1h") groupBy = 'hour';
+        else if (timeGranularity === "1d") groupBy = 'day';
+        
+        // Call the API
+        const response = await getHierarchicalStats({
+          project_id: projectId,
+          start_date: startDate.toISOString(),
+          end_date: endDate.toISOString(),
+          group_by: groupBy
+        });
+        
+        // Save the stats
+        setChartStats({
+          totalMessages: response.total_messages,
+          totalKeywords: response.total_keywords
+        });
+        
+        // Transform API response into chart data format
+        const mappedData = response.periods.map(period => ({
+          date: period.period_start,
+          value: period.total_messages,
+          keywords: period.total_keywords
+        }));
+        
+        setChartData(mappedData);
+      } catch (error) {
+        console.error('Error fetching chart data:', error);
+        
+        // Get range again for the catch block
+        const fallbackRange = getEffectiveDateRange();
+        
+        // Fallback to generated data if API fails
     const generateData = () => {
       const data = [];
-      let currentDate = new Date(startDate);
+          let currentDate = new Date(fallbackRange.from);
       
-      while (currentDate <= endDate) {
+          while (currentDate <= fallbackRange.to) {
         data.push({
           date: currentDate.toISOString(),
           value: Math.floor(Math.random() * 100) + 10
@@ -175,7 +255,13 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
     };
     
     setChartData(generateData());
-  }, [project, timeGranularity, dateRangeMode, selectedDate, dateRange, getEffectiveDateRange]);
+      } finally {
+        setIsChartLoading(false);
+      }
+    };
+    
+    fetchChartData();
+  }, [project, timeGranularity, dateRangeMode, selectedDate, dateRange, getEffectiveDateRange, projectId]);
   
   useEffect(() => {
     const fetchProject = async () => {
@@ -217,25 +303,22 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
     };
     
     fetchProject();
-  }, [projectId]);
+  }, [projectId, refreshTrigger]);
   
   const handleStartAnalysis = async () => {
     try {
       setIsStartingAnalysis(true);
-      // Mock delay to simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Mock updating the analysis data
-      if (analysisData) {
-        setAnalysisData({
-          ...analysisData,
-          is_running: true
-        });
-      }
+      // Call the API to start analysis
+      await startAnalysis(projectId);
       
       toast.success("Анализ запущен", {
         description: "Отслеживание данных началось"
       });
+      
+      // Refresh analysis status
+      const analysisStatus = await getAnalysisStatus(projectId);
+      setAnalysisData(analysisStatus);
     } catch (error) {
       console.error('Error starting analysis:', error);
       toast.error("Ошибка", {
@@ -249,20 +332,17 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
   const handleStopAnalysis = async () => {
     try {
       setIsStoppingAnalysis(true);
-      // Mock delay to simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Mock updating the analysis data
-      if (analysisData) {
-        setAnalysisData({
-          ...analysisData,
-          is_running: false
-        });
-      }
+      // Call the API to stop analysis
+      await stopAnalysis(projectId);
       
       toast.success("Анализ остановлен", {
         description: "Отслеживание данных прекращено"
       });
+      
+      // Refresh analysis status
+      const analysisStatus = await getAnalysisStatus(projectId);
+      setAnalysisData(analysisStatus);
     } catch (error) {
       console.error('Error stopping analysis:', error);
       toast.error("Ошибка", {
@@ -290,6 +370,166 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
     } finally {
       setIsRunningManualAnalysis(false);
     }
+  };
+  
+  const handleOneTimeAnalysis = () => {
+    setIsSelectingDateRange(true);
+  };
+  
+  const handleAnalysisDateRangeSubmit = async () => {
+    if (!analysisDateRange.from || !analysisDateRange.to) {
+      toast.error("Выберите диапазон дат", {
+        description: "Пожалуйста, укажите начальную и конечную даты для анализа"
+      });
+      return;
+    }
+    
+    setIsSelectingDateRange(false);
+    setIsLoadingAnalysisResults(true);
+    
+    try {
+      // Start one-time analysis
+      const result = await runOneTimeAnalysis(projectId, {
+        start_date: analysisDateRange.from.toISOString(),
+        end_date: analysisDateRange.to.toISOString()
+      });
+      
+      // Save task ID and start polling
+      setAnalysisTaskId(result.task_id);
+      setAnalysisTask({
+        taskId: result.task_id,
+        status: 'pending',
+        polling: true
+      });
+      
+      // Show success toast
+      toast.success("Анализ запущен", {
+        description: "Анализ данных начат. Это может занять некоторое время."
+      });
+      
+      // Start polling for status
+      pollAnalysisStatus(result.task_id);
+      
+    } catch (error) {
+      console.error('Error starting analysis:', error);
+      toast.error("Ошибка", {
+        description: "Не удалось запустить анализ. Попробуйте еще раз."
+      });
+      setIsLoadingAnalysisResults(false);
+    }
+  };
+  
+  // Add function to poll analysis status
+  const pollAnalysisStatus = async (taskId: string) => {
+    try {
+      const status = await getOneTimeAnalysisStatus(taskId);
+      
+      // Update analysis task state
+      setAnalysisTask(prev => ({
+        ...prev!,
+        status: status.status
+      }));
+      
+      // Check if analysis is complete or has error
+      if (status.status === 'completed') {
+        // Analysis is complete, get the results
+        await fetchAnalysisResults(taskId);
+        
+        toast.success("Анализ завершен", {
+          description: "Анализ данных успешно завершен."
+        });
+        
+        setAnalysisTask(prev => ({
+          ...prev!,
+          polling: false
+        }));
+        
+      } else if (status.status === 'error') {
+        // Analysis failed
+        toast.error("Ошибка анализа", {
+          description: status.error_message || "Произошла ошибка при выполнении анализа."
+        });
+        
+        setAnalysisTask(prev => ({
+          ...prev!,
+          polling: false
+        }));
+        
+        setIsLoadingAnalysisResults(false);
+        
+      } else {
+        // Analysis is still running, continue polling
+        setTimeout(() => pollAnalysisStatus(taskId), 2000);
+      }
+      
+    } catch (error) {
+      console.error('Error polling analysis status:', error);
+      
+      toast.error("Ошибка", {
+        description: "Не удалось получить статус анализа."
+      });
+      
+      setAnalysisTask(prev => ({
+        ...prev!,
+        polling: false
+      }));
+      
+      setIsLoadingAnalysisResults(false);
+    }
+  };
+
+  // Add function to fetch analysis results
+  const fetchAnalysisResults = async (taskId: string) => {
+    try {
+      // Get the status to get the analysis details
+      const status = await getOneTimeAnalysisStatus(taskId);
+      
+      // Map UI time granularity to API time grouping
+      let groupBy: TimeGrouping = 'day';
+      if (timeGranularity === "15m") groupBy = '15min';
+      else if (timeGranularity === "1h") groupBy = 'hour';
+      else if (timeGranularity === "1d") groupBy = 'day';
+      
+      // Fetch hierarchical stats with the same date range
+      const response = await getHierarchicalStats({
+        project_id: projectId,
+        start_date: status.start_date || (analysisDateRange.from ? analysisDateRange.from.toISOString() : new Date().toISOString()),
+        end_date: status.end_date || (analysisDateRange.to ? analysisDateRange.to.toISOString() : new Date().toISOString()),
+        group_by: groupBy
+      });
+      
+      // Update the chart stats
+      setChartStats({
+        totalMessages: status.total_messages,
+        totalKeywords: status.matches_found
+      });
+      
+      // Transform API response into chart data format
+      const mappedData = response.periods.map(period => ({
+        date: period.period_start,
+        value: period.total_messages,
+        keywords: period.total_keywords
+      }));
+      
+      setChartData(mappedData);
+      setHasAnalysisResults(true);
+      setIsLoadingAnalysisResults(false);
+      
+    } catch (error) {
+      console.error('Error fetching analysis results:', error);
+      
+      toast.error("Ошибка", {
+        description: "Не удалось получить результаты анализа."
+      });
+      
+      setIsLoadingAnalysisResults(false);
+    }
+  };
+  
+  const handleResetAnalysis = () => {
+    setAnalysisTaskId(null);
+    setHasAnalysisResults(false);
+    setIsSelectingDateRange(false);
   };
   
   if (loading) {
@@ -343,8 +583,8 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
           <Badge variant="outline" className={`flex items-center gap-1 py-1 ${analysisData.is_running ? "bg-blue-500/10" : "bg-gray-500/10"}`}>
             {analysisData.is_running ? (
               <>
-                <Eye className="h-3 w-3" />
-                <span>Отслеживается</span>
+            <Eye className="h-3 w-3" />
+            <span>Отслеживается</span>
               </>
             ) : (
               <>
@@ -360,14 +600,13 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
             <span>Отправляется</span>
           </Badge>
         )}
-        <Badge variant="outline" className="py-1">{project.status || "Активен"}</Badge>
       </div>
       
       <div className="bg-muted/30 rounded-lg p-4 mb-6">
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
           <div>
             <h3 className="text-lg font-medium mb-1">Управление анализом</h3>
-            <p className="text-sm text-muted-foreground">Запуск, остановка и ручной запуск анализа данных</p>
+            <p className="text-sm text-muted-foreground">Запуск/остановка анализа данных</p>
           </div>
           
           <div className="flex flex-wrap gap-2">
@@ -410,24 +649,6 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
                 )}
               </Button>
             )}
-            
-            <Button 
-              variant="outline" 
-              onClick={handleRunManualAnalysis}
-              disabled={isRunningManualAnalysis}
-            >
-              {isRunningManualAnalysis ? (
-                <>
-                  <Loader className="mr-2 h-4 w-4 animate-spin" />
-                  Запускается...
-                </>
-              ) : (
-                <>
-                  <Calendar className="mr-2 h-4 w-4" />
-                  Ручной анализ
-                </>
-              )}
-            </Button>
           </div>
         </div>
       </div>
@@ -483,7 +704,14 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
             </div>
           </div>
 
-          <div className="flex items-center justify-between">
+          <Tabs value={chartTabValue} onValueChange={setChartTabValue}>
+            <TabsList>
+              <TabsTrigger value="realtime" className="cursor-pointer">Данные в реальном времени</TabsTrigger>
+              <TabsTrigger value="analysis" className="cursor-pointer">Анализ по выбору</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="realtime">
+              <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Диапазон дат:</span>
               <Badge variant="outline" className="font-normal">{getDateRangeDescription()}</Badge>
@@ -555,10 +783,20 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
                 )}
               </Tabs>
             </div>
+              </div>
+              
+              <div className="flex flex-wrap gap-4 mb-4">
+                <div className="bg-muted/30 rounded-lg p-3">
+                  <div className="text-sm text-muted-foreground">Всего совпадений</div>
+                  <div className="text-2xl font-medium">{isChartLoading ? "..." : chartStats.totalMessages.toLocaleString()}</div>
+                </div>
+                <div className="bg-muted/30 rounded-lg p-3">
+                  <div className="text-sm text-muted-foreground">Найдено ключевых слов</div>
+                  <div className="text-2xl font-medium">{isChartLoading ? "..." : chartStats.totalKeywords.toLocaleString()}</div>
           </div>
         </div>
         
-        <Card className="mt-4">
+              <Card>
           <CardContent className="pt-6">
             <TimeChart 
               data={chartData.map(item => ({
@@ -569,9 +807,171 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
               dateRange={getEffectiveDateRange()}
               title=""
               color="#4f46e5" 
+                    loading={isChartLoading}
             />
           </CardContent>
         </Card>
+            </TabsContent>
+            
+            <TabsContent value="analysis">
+              <div className="mt-4">
+                {isSelectingDateRange ? (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Выберите диапазон дат для анализа</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-col space-y-4">
+                        <div>
+                          <Label className="mb-2 block">Период для анализа:</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant={"outline"} className="w-full justify-start text-left font-normal cursor-pointer">
+                                <Calendar className="mr-2 h-4 w-4" />
+                                {analysisDateRange.from ? (
+                                  analysisDateRange.to ? (
+                                    <>
+                                      {format(analysisDateRange.from, "d MMM yyyy", { locale: ru })} -{" "}
+                                      {format(analysisDateRange.to, "d MMM yyyy", { locale: ru })}
+                                    </>
+                                  ) : (
+                                    format(analysisDateRange.from, "d MMMM yyyy", { locale: ru })
+                                  )
+                                ) : (
+                                  "Выберите диапазон дат"
+                                )}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <CalendarComponent
+                                initialFocus
+                                mode="range"
+                                defaultMonth={analysisDateRange.from}
+                                selected={analysisDateRange}
+                                onSelect={range => setAnalysisDateRange(range || { from: undefined, to: undefined })}
+                                numberOfMonths={2}
+                                locale={ru}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" onClick={() => setIsSelectingDateRange(false)}>
+                            Отмена
+                          </Button>
+                          <Button onClick={handleAnalysisDateRangeSubmit}>
+                            Запустить анализ
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : isLoadingAnalysisResults ? (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Выполняется анализ</CardTitle>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Анализируем данные за период: {format(analysisDateRange.from!, "d MMM yyyy", { locale: ru })} - 
+                        {format(analysisDateRange.to!, "d MMM yyyy", { locale: ru })}
+                      </p>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="mb-4">
+                        <Badge variant="outline" className="mb-2">ID задачи: {analysisTaskId}</Badge>
+                        {analysisTask && (
+                          <Badge variant={analysisTask.status === 'error' ? 'destructive' : 'outline'} className="ml-2">
+                            Статус: {
+                              analysisTask.status === 'pending' ? 'Ожидание' :
+                              analysisTask.status === 'processing' ? 'Обработка' :
+                              analysisTask.status === 'completed' ? 'Завершено' :
+                              'Ошибка'
+                            }
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex justify-center items-center py-8">
+                        <div className="text-center">
+                          <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-current border-r-transparent" role="status">
+                            <span className="sr-only">Загрузка...</span>
+                          </div>
+                          <p className="mt-4 text-sm text-muted-foreground">
+                            Это может занять некоторое время в зависимости от объема данных
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : hasAnalysisResults ? (
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between">
+                      <div>
+                        <CardTitle>Результаты анализа</CardTitle>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Период: {format(analysisDateRange.from!, "d MMM yyyy", { locale: ru })} - 
+                          {format(analysisDateRange.to!, "d MMM yyyy", { locale: ru })}
+                        </p>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={handleResetAnalysis}>
+                        Новый анализ
+                      </Button>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="mb-4">
+                        <Badge variant="outline" className="mb-2">ID задачи: {analysisTaskId}</Badge>
+                      </div>
+                      
+                      <div className="flex flex-wrap gap-4 mb-4">
+                        <div className="bg-muted/30 rounded-lg p-3">
+                          <div className="text-sm text-muted-foreground">Всего совпадений</div>
+                          <div className="text-2xl font-medium">
+                            {isLoadingAnalysisResults ? "..." : chartStats.totalMessages.toLocaleString()}
+                          </div>
+                        </div>
+                        <div className="bg-muted/30 rounded-lg p-3">
+                          <div className="text-sm text-muted-foreground">Найдено ключевых слов</div>
+                          <div className="text-2xl font-medium">
+                            {isLoadingAnalysisResults ? "..." : chartStats.totalKeywords.toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <TimeChart 
+                        data={chartData.map(item => ({
+                          date: item.date,
+                          value: item.value,
+                          keywords: item.keywords
+                        }))}
+                        timeGranularity={timeGranularity}
+                        dateRange={{
+                          from: analysisDateRange.from!,
+                          to: analysisDateRange.to!
+                        }}
+                        title=""
+                        color="#10b981"
+                        loading={isLoadingAnalysisResults}
+                      />
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card>
+                    <CardContent className="flex flex-col items-center justify-center py-10">
+                      <div className="text-center max-w-[450px]">
+                        <h3 className="text-lg font-medium mb-2">Запустить детальный анализ</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Выберите период для одноразового анализа данных и получите детальную статистику по совпадениям
+                        </p>
+                        <Button onClick={handleOneTimeAnalysis}>
+                          <Calendar className="mr-2 h-4 w-4" />
+                          Запустить анализ
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
       
       <Tabs defaultValue="keywords">
@@ -580,10 +980,10 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
           <TabsTrigger value="groups" className="cursor-pointer">Чаты</TabsTrigger>
         </TabsList>
         <TabsContent value="keywords" className="mt-4">
-          <KeywordsTab projectId={String(project.id)} /> 
+          <KeywordsTab projectId={String(project.id)} onDataChange={triggerRefresh} /> 
         </TabsContent>
         <TabsContent value="groups" className="mt-4">
-          <GroupsTab projectId={String(project.id)} />
+          <GroupsTab projectId={String(project.id)} onDataChange={triggerRefresh} />
         </TabsContent>
       </Tabs>
     </div>
@@ -591,7 +991,7 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
 }
 
 // Компонент KeywordsTab
-const KeywordsTab = ({ projectId }: { projectId: string | number }) => {
+const KeywordsTab = ({ projectId, onDataChange }: { projectId: string | number, onDataChange: () => void }) => {
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -631,7 +1031,7 @@ const KeywordsTab = ({ projectId }: { projectId: string | number }) => {
         .map(word => word.trim())
         .filter(word => word.length > 0);
       
-      await addKeywordsToProject(projectId, wordsToAdd);
+      await addKeywordsToProject(String(projectId), wordsToAdd);
       
       // Refresh keywords list
       await fetchKeywords();
@@ -644,6 +1044,9 @@ const KeywordsTab = ({ projectId }: { projectId: string | number }) => {
       toast.success("Ключевые слова добавлены", {
         description: `Добавлено ${wordsToAdd.length} ключевых слов в проект.`
       });
+      
+      // Call onDataChange to trigger refresh in parent component
+      onDataChange();
       
     } catch (err) {
       console.error('Failed to add keywords:', err);
@@ -659,15 +1062,21 @@ const KeywordsTab = ({ projectId }: { projectId: string | number }) => {
     }
   };
 
-  const handleDeleteKeyword = async (keywordId: string, word: string) => {
+  const handleDeleteKeyword = async (keywordId: string | number, word: string) => {
     try {
-      await deleteKeyword(keywordId);
-      // Remove the keyword from the local state
-      setKeywords(keywords.filter(k => k.id !== keywordId));
+      await deleteKeyword(String(keywordId));
+      
+      // Refresh keyword list
+      await fetchKeywords();
+      
       // Show success toast
       toast.success("Ключевое слово удалено", {
-        description: `Ключевое слово "${word}" было успешно удалено из проекта.`
+        description: `Ключевое слово "${word}" удалено из проекта.`
       });
+      
+      // Call onDataChange to trigger refresh in parent component
+      onDataChange();
+      
     } catch (err) {
       console.error('Failed to delete keyword:', err);
       // Show error toast
@@ -754,7 +1163,7 @@ const KeywordsTab = ({ projectId }: { projectId: string | number }) => {
   );
 };
 
-const GroupsTab = ({ projectId }: { projectId: string | number }) => {
+const GroupsTab = ({ projectId, onDataChange }: { projectId: string | number, onDataChange: () => void }) => {
   const [groups, setGroups] = useState<ChatGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -856,30 +1265,44 @@ const GroupsTab = ({ projectId }: { projectId: string | number }) => {
 
   // Handle adding chat to project
   const handleAddChat = async () => {
-    if (!selectedChat) return;
+    if (!selectedChat) {
+      toast.error("Выберите чат для добавления");
+      return;
+    }
     
+    // Find the selected group to get its title
     const selectedGroup = telegramGroups.find(group => group.id === selectedChat);
-    if (!selectedGroup) return;
+    if (!selectedGroup) {
+      toast.error("Выбранная группа не найдена");
+      return;
+    }
     
     try {
       setAddingChat(true);
       
       await addChatToProject({
-        chat_id: selectedGroup.id,
+        project_id: String(projectId),
+        chat_id: selectedChat,
         chat_name: selectedGroup.title,
-        chat_type: "test",
-        project_id: String(projectId)
+        chat_type: "telegram"
       });
       
-      // Refresh the list of groups
-      const updatedGroups = await getChatsByProjectId(String(projectId));
-      setGroups(updatedGroups);
+      // Refresh groups list
+      const data = await getChatsByProjectId(String(projectId));
+      setGroups(data);
       
-      toast.success("Успех", {
-        description: "Чат успешно добавлен в проект",
-      });
-      
+      // Close dialog and reset selection
       setIsDialogOpen(false);
+      setSelectedChat(null);
+      
+      // Show success toast
+      toast.success("Чат добавлен", {
+        description: "Чат успешно добавлен в проект"
+      });
+      
+      // Call onDataChange to trigger refresh in parent component
+      onDataChange();
+      
     } catch (err) {
       console.error('Error adding chat to project:', err);
       toast.error("Ошибка", {
@@ -910,16 +1333,28 @@ const GroupsTab = ({ projectId }: { projectId: string | number }) => {
     
     try {
       setIsDeleting(true);
-      await deleteChat(chatToDelete.id);
       
-      // Update the groups list
-      setGroups(groups.filter(group => group.id !== chatToDelete.id));
-      
-      toast.success("Успех", {
-        description: "Чат успешно удален из проекта",
+      await deleteChat({ 
+        project_id: String(projectId), 
+        chat_id: chatToDelete.id 
       });
       
+      // Update groups list (remove deleted chat)
+      setGroups(prevGroups => 
+        prevGroups.filter(g => g.id !== chatToDelete.id)
+      );
+      
+      // Close alert dialog
       setChatToDelete(null);
+      
+      // Show success toast
+      toast.success("Чат удален", {
+        description: `Чат "${chatToDelete.chat_name}" удален из проекта.`
+      });
+      
+      // Call onDataChange to trigger refresh in parent component
+      onDataChange();
+      
     } catch (err) {
       console.error('Error deleting chat:', err);
       toast.error("Ошибка", {
