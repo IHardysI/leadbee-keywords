@@ -7,6 +7,7 @@ import {
   FolderKanban,
   X,
   Users,
+  Layers
 } from "lucide-react";
 
 export const routes = [
@@ -18,7 +19,7 @@ export const routes = [
   },
   {
     label: "Чаты",
-    icon: Users,
+    icon: Layers,
     href: "/chats",
     color: "text-orange-500",
   },
@@ -26,7 +27,7 @@ export const routes = [
     label: "Пользователи",
     icon: Users,
     href: "/users",
-    color: "text-blue-500",
+    color: "text-green-500",
   },
 ];
 
