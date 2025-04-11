@@ -92,11 +92,7 @@ export default function UserTable({
                       <EditUserDialog
                         user={editingUser}
                         onEdit={async (updatedUser) => {
-                          // Implement actual edit functionality here
                           console.log("Updating user:", updatedUser);
-                          // You would typically make an API call here
-                          
-                          // Close the dialog when done
                           setOpenEditDialog(false);
                         }}
                         onClose={() => setOpenEditDialog(false)}
