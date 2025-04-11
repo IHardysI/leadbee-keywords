@@ -211,3 +211,65 @@ export async function createGroup(joinLink: string): Promise<any> {
     throw error;
   }
 }
+
+/**
+ * Get list of Telegram groups with filtering and search capabilities
+ * @param options Search and filtering options
+ * @returns Promise containing filtered Telegram groups response
+ */
+export const getGroupsList = async ({
+  page = 1,
+  limit = 15,
+  query = '',
+  filter = {}
+}: {
+  page?: number;
+  limit?: number;
+  query?: string;
+  filter?: Record<string, any>;
+}): Promise<TelegramGroupsResponse> => {
+  try {
+    const offset = (page - 1) * limit;
+    
+    // Prepare params
+    const params: Record<string, any> = { 
+      limit, 
+      offset,
+      ts: new Date().getTime() 
+    };
+    
+    // Add search query if provided
+    if (query) {
+      params.query = query;
+    }
+    
+    // Add any additional filter parameters
+    Object.entries(filter).forEach(([key, value]) => {
+      params[key] = value;
+    });
+    
+    // Construct URL with query parameters
+    const queryString = new URLSearchParams(
+      Object.entries(params).map(([k, v]) => [k, v.toString()])
+    ).toString();
+    
+    const response = await fetch(
+      `https://python-platforma-leadbee-freelance.reflectai.pro/group/list?${queryString}`,
+      {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+        },
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    
+    return response.json() as Promise<TelegramGroupsResponse>;
+  } catch (error) {
+    console.error('Error fetching groups list:', error);
+    throw error;
+  }
+};

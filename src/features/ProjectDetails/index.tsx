@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Calendar, Tag, MessageSquare, Bell, Eye, EyeOff, Send, ArrowLeft, Loader, Trash2, Search } from "lucide-react";
+import { Calendar, Tag, MessageSquare, Bell, Eye, EyeOff, Send, ArrowLeft, Loader, Trash2, Search, XCircle } from "lucide-react";
 import { TimeChart } from "@/features/TimeChart";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -53,6 +53,7 @@ import {
   runOneTimeAnalysis, 
   getOneTimeAnalysisStatus 
 } from "@/shared/api/analysis";
+import { getGroupsList } from "@/shared/api/chats";
 
 // We keep this interface for our internal use with additional UI-specific fields
 interface Project {
@@ -122,6 +123,9 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
     status: string;
     polling: boolean;
   } | null>(null);
+  
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [tableLoading, setTableLoading] = useState(false);
   
   // Function to trigger a refresh
   const triggerRefresh = () => {
@@ -1179,6 +1183,8 @@ const GroupsTab = ({ projectId, onDataChange }: { projectId: string | number, on
   const itemsPerPage = 50;
   const [chatToDelete, setChatToDelete] = useState<ChatGroup | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [tableLoading, setTableLoading] = useState(false);
 
   // Fetch project groups
   useEffect(() => {
@@ -1199,62 +1205,68 @@ const GroupsTab = ({ projectId, onDataChange }: { projectId: string | number, on
     fetchGroups();
   }, [projectId]);
 
-  const handleOpenDialog = async () => {
-    setIsDialogOpen(true);
-    setSelectedChat(null);
-    setTelegramGroupsPage(1);
-    setTelegramGroups([]);
+  // Add debouncing for search term to avoid too many requests
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
     
-    try {
-      setLoadingTelegramGroups(true);
-      await fetchMoreGroups(1);
-    } catch (err) {
-      console.error('Error fetching Telegram groups:', err);
-      toast.error("Ошибка", {
-        description: "Не удалось загрузить список Telegram групп"
-      });
-    } finally {
-      setLoadingTelegramGroups(false);
-    }
-  };
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+  
+  // Update the Telegram groups fetching to use server-side search
+  useEffect(() => {
+    if (!isDialogOpen) return;
+    
+    const fetchFilteredGroups = async () => {
+      try {
+        setTableLoading(true);
+        
+        // Use getGroupsList instead of getTelegramGroups
+        const data = await getGroupsList({
+          page: telegramGroupsPage,
+          limit: itemsPerPage,
+          query: debouncedSearchTerm
+        });
+        
+        if (data.status === "success") {
+          setTelegramGroups(data.groups);
+          setFilteredTelegramGroups(data.groups);
+          setHasMoreGroups(data.total_count > telegramGroupsPage * itemsPerPage);
+        }
+      } catch (err) {
+        console.error('Error fetching filtered Telegram groups:', err);
+      } finally {
+        setTableLoading(false);
+      }
+    };
 
-  // Function to fetch more groups
+    fetchFilteredGroups();
+  }, [isDialogOpen, debouncedSearchTerm, telegramGroupsPage]);
+
+  // Update fetchMoreGroups to use getGroupsList
   const fetchMoreGroups = async (page: number) => {
     try {
-      const data = await getTelegramGroups(page, itemsPerPage);
+      const data = await getGroupsList({
+        page,
+        limit: itemsPerPage,
+        query: debouncedSearchTerm
+      });
       
       if (data.status === "success") {
-        // Append new groups to existing ones, avoiding duplicates
         setTelegramGroups(prev => {
           const newGroups = data.groups.filter(
-            group => !prev.some(existing => existing.id === group.id)
+            (group: TelegramGroupsResponse['groups'][0]) => !prev.some(existing => existing.id === group.id)
           );
           return [...prev, ...newGroups];
         });
         
-        // Check if there are more groups to load
+        setFilteredTelegramGroups(telegramGroups);
         setHasMoreGroups(data.total_count > page * itemsPerPage);
       }
     } catch (err) {
       console.error('Error fetching more Telegram groups:', err);
       throw err;
-    }
-  };
-
-  // Handle loading more groups
-  const handleLoadMore = async () => {
-    const nextPage = telegramGroupsPage + 1;
-    setLoadingTelegramGroups(true);
-    
-    try {
-      await fetchMoreGroups(nextPage);
-      setTelegramGroupsPage(nextPage);
-    } catch (err) {
-      toast.error("Ошибка", {
-        description: "Не удалось загрузить больше групп"
-      });
-    } finally {
-      setLoadingTelegramGroups(false);
     }
   };
 
@@ -1313,20 +1325,6 @@ const GroupsTab = ({ projectId, onDataChange }: { projectId: string | number, on
     }
   };
 
-  // Filter groups based on search term
-  useEffect(() => {
-    if (!searchTerm.trim()) {
-      setFilteredTelegramGroups(telegramGroups);
-      return;
-    }
-    
-    const term = searchTerm.toLowerCase().trim();
-    const filtered = telegramGroups.filter(group => 
-      group.title.toLowerCase().includes(term)
-    );
-    setFilteredTelegramGroups(filtered);
-  }, [searchTerm, telegramGroups]);
-
   // Handle delete chat
   const handleDeleteChat = async () => {
     if (!chatToDelete) return;
@@ -1379,7 +1377,7 @@ const GroupsTab = ({ projectId, onDataChange }: { projectId: string | number, on
         <h2 className="text-xl font-semibold">Группы проекта</h2>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={handleOpenDialog}>Добавить группу</Button>
+            <Button onClick={() => setIsDialogOpen(true)}>Добавить группу</Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[625px] w-full">
             <DialogHeader>
@@ -1390,10 +1388,27 @@ const GroupsTab = ({ projectId, onDataChange }: { projectId: string | number, on
             </DialogHeader>
             
             <div className="py-2 mb-2">
-              <SearchInput 
-                value={searchTerm}
-                onChange={setSearchTerm}
-              />
+              <div className="relative flex-grow">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input 
+                  placeholder="Поиск по названию"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 pr-9 w-full"
+                />
+                {searchTerm && (
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 h-7 w-7" 
+                    onClick={() => {
+                      setSearchTerm('');
+                    }}
+                  >
+                    <XCircle className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             </div>
             
             <div className="">
@@ -1409,7 +1424,12 @@ const GroupsTab = ({ projectId, onDataChange }: { projectId: string | number, on
                 </div>
               ) : (
                 <div className="flex flex-col">
-                  <div className="max-h-[400px] overflow-y-auto border rounded-md w-full">
+                  <div className="max-h-[400px] overflow-y-auto border rounded-md w-full relative">
+                    {tableLoading && (
+                      <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
+                        <Loader className="h-8 w-8 animate-spin text-primary" />
+                      </div>
+                    )}
                     <div className="w-full overflow-x-hidden">
                       <Table className="w-full table-fixed">
                         <TableHeader>
@@ -1452,7 +1472,9 @@ const GroupsTab = ({ projectId, onDataChange }: { projectId: string | number, on
                     <div className="mt-4 flex justify-center">
                       <Button 
                         variant="outline" 
-                        onClick={handleLoadMore}
+                        onClick={() => {
+                          setTelegramGroupsPage(telegramGroupsPage + 1);
+                        }}
                         disabled={loadingTelegramGroups}
                         className="transition-colors duration-300 hover:bg-black hover:text-white"
                       >

@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react";
-import { getTelegramGroups, TelegramGroupsResponse, createGroup } from "@/shared/api/chats";
+import { useEffect, useState, useRef } from "react";
+import { getTelegramGroups, TelegramGroupsResponse, createGroup, getGroupsList } from "@/shared/api/chats";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader, PlusCircle, Pencil } from "lucide-react";
+import { Loader, PlusCircle, Pencil, Search, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PaginationUniversal from "@/components/ui/pagination";
 import { SearchInput } from "@/components/ui/search-input";
@@ -37,12 +37,37 @@ export default function ChatsPage() {
   const [isAddMassGroupsOpen, setIsAddMassGroupsOpen] = useState(false);
   const [massGroupsSheetUrl, setMassGroupsSheetUrl] = useState('');
   const [isSheetUrlEditable, setIsSheetUrlEditable] = useState(true);
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [tableLoading, setTableLoading] = useState(false);
+
+  // Add debouncing for search term to avoid too many requests
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+  
+  // Update currentPage when search term changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchTerm]);
 
   useEffect(() => {
     const fetchGroups = async () => {
-      setIsLoading(true);
+      if (debouncedSearchTerm !== searchTerm) {
+        setTableLoading(true);
+      } else {
+        setIsLoading(true);
+      }
+      
       try {
-        const telegramData = await getTelegramGroups(currentPage, itemsPerPage);
+        const telegramData = await getGroupsList({
+          page: currentPage,
+          limit: itemsPerPage,
+          query: debouncedSearchTerm
+        });
         
         if (telegramData.status === "success") {
           if (navigationMode === 'pagination') {
@@ -57,6 +82,7 @@ export default function ChatsPage() {
           }
           
           setTotalCount(telegramData.total_count);
+          setFilteredGroups(telegramData.groups);
           setError(null);
         } else {
           setError('Ошибка при загрузке групп');
@@ -67,25 +93,12 @@ export default function ChatsPage() {
         console.error(err);
       } finally {
         setIsLoading(false);
+        setTableLoading(false);
       }
     };
 
     fetchGroups();
-  }, [currentPage, navigationMode, itemsPerPage]);
-
-  // Filter groups based on search term
-  useEffect(() => {
-    if (!searchTerm.trim()) {
-      setFilteredGroups(telegramGroups);
-      return;
-    }
-    
-    const term = searchTerm.toLowerCase().trim();
-    const filtered = telegramGroups.filter(group => 
-      group.title.toLowerCase().includes(term)
-    );
-    setFilteredGroups(filtered);
-  }, [searchTerm, telegramGroups]);
+  }, [currentPage, navigationMode, itemsPerPage, debouncedSearchTerm]);
 
   const handlePageChange = (page: number) => {
     setNavigationMode('pagination');
@@ -231,12 +244,28 @@ export default function ChatsPage() {
         </div>
       </div>
 
-      {/* Replace hardcoded search with SearchInput component */}
       <div className="mb-4 flex">
-        <SearchInput 
-          value={searchTerm}
-          onChange={setSearchTerm}
-        />
+        <div className="relative flex-grow">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input 
+            placeholder="Поиск по названию"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9 pr-9 w-full"
+          />
+          {searchTerm && (
+            <Button 
+              variant="ghost" 
+              size="icon"
+              className="absolute right-2 top-1/2 transform -translate-y-1/2 h-7 w-7" 
+              onClick={() => {
+                setSearchTerm('');
+              }}
+            >
+              <XCircle className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
 
       {filteredGroups.length === 0 ? (
@@ -250,7 +279,12 @@ export default function ChatsPage() {
         </div>
       ) : (
         <>
-          <div className="rounded-md border overflow-hidden">
+          <div className="rounded-md border overflow-hidden relative">
+            {tableLoading && (
+              <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10">
+                <Loader className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            )}
             <Table>
               <TableHeader>
                 <TableRow>
