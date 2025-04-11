@@ -111,7 +111,7 @@ export function TimeChart({
         aggregatedMap.set(timeKey, {
           sum: 0,
           count: 0,
-          date: item.date, // Сохраняем первое время для этого ключа
+          date: item.date, 
         })
       }
 
@@ -120,7 +120,6 @@ export function TimeChart({
       groupData.count += 1
     })
 
-    // Преобразуем MAP в массив
     return Array.from(aggregatedMap.entries()).map(([timeKey, groupData]: [string, any]) => ({
       date: groupData.date,
       value: Math.round(groupData.sum / groupData.count),
@@ -129,7 +128,7 @@ export function TimeChart({
     }))
   }
 
-  // Форматирование подписей оси X
+
   const formatXAxis = (tickItem: string) => {
     const date = parseISO(tickItem)
 
@@ -146,20 +145,22 @@ export function TimeChart({
     return format(date, "d MMM", { locale: ru })
   }
 
-  // Компонент всплывающей подсказки
+
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length > 0) {
-      const date = parseISO(label)
-      const value = payload[0].value
+      const date = parseISO(label);
+      const messages = payload[0].value;
+      const keywords = payload[0].payload.keywords || 0;
 
       return (
         <div className="bg-white border border-gray-200 shadow-lg rounded-md p-4 z-50">
           <div className="text-sm text-gray-500">{format(date, "d MMMM yyyy HH:mm", { locale: ru })}</div>
-          <div className="text-xl font-bold mt-1" style={{ color }}>Найдено совпадений: {value}</div>
+          <div className="text-lg font-medium mt-1" style={{ color }}>Совпадений: {messages}</div>
+          <div className="text-lg font-medium" style={{ color: "#10b981" }}>Ключевых слов: {keywords}</div>
         </div>
-      )
+      );
     }
-    return null
+    return null;
   }
 
   // Находим максимальное значение для линии отсчёта

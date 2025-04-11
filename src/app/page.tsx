@@ -1,9 +1,13 @@
 "use client";
 
-import { redirect } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
-// Simply render the ProjectDashboard on the root path
 export default function HomePage() {
-  // Perform server-side redirect to /projects
-  redirect("/projects");
+  const router = useRouter();
+
+  useEffect(() => {
+    router.push("/projects");
+  }, [router]);
+  return null;
 }

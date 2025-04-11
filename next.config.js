@@ -1,12 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  swcMinify: true,
   experimental: {
-    // Add this to disable the params await requirement
-    missingSyncParamsInRoutesWarning: false
+    // Removing the unrecognized 'missingSyncParamsInRoutesWarning' option
   },
-  // Add this if you're having issues with TypeScript paths
+  // Keep these settings for deployment
   typescript: {
     // During deployment, we want to proceed even with errors
     ignoreBuildErrors: true,

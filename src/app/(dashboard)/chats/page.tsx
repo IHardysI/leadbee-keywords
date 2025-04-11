@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { getTelegramGroups, TelegramGroupsResponse, createGroup } from "@/shared/api/chats";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader } from "lucide-react";
+import { Loader, PlusCircle, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PaginationUniversal from "@/components/ui/pagination";
 import { SearchInput } from "@/components/ui/search-input";
@@ -34,6 +34,9 @@ export default function ChatsPage() {
   const [joinLink, setJoinLink] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [joinLinkError, setJoinLinkError] = useState('');
+  const [isAddMassGroupsOpen, setIsAddMassGroupsOpen] = useState(false);
+  const [massGroupsSheetUrl, setMassGroupsSheetUrl] = useState('');
+  const [isSheetUrlEditable, setIsSheetUrlEditable] = useState(true);
 
   useEffect(() => {
     const fetchGroups = async () => {
@@ -217,6 +220,14 @@ export default function ChatsPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          <Button 
+            variant="default"
+            className="flex-grow sm:flex-grow-0"
+            onClick={() => setIsAddMassGroupsOpen(true)}
+          >
+            <PlusCircle className="h-4 w-4 mr-2" />
+            Добавить чаты массово
+          </Button>
         </div>
       </div>
 
@@ -335,6 +346,49 @@ export default function ChatsPage() {
             />
           )}
         </>
+      )}
+
+      {isAddMassGroupsOpen && (
+        <Dialog open={true} onOpenChange={() => setIsAddMassGroupsOpen(false)}>
+          <DialogContent className="w-full max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Добавить группы массово</DialogTitle>
+              <DialogDescription>URL Google-таблицы со списком групп для добавления</DialogDescription>
+            </DialogHeader>
+            <div className="mt-4">
+              <div className="flex gap-2 items-center">
+                <Input
+                  placeholder="URL Google-таблицы"
+                  value={massGroupsSheetUrl}
+                  onChange={(e) => setMassGroupsSheetUrl(e.target.value)}
+                  className="flex-grow"
+                  disabled={!isSheetUrlEditable}
+                />
+                <Button 
+                  variant="outline" 
+                  className="whitespace-nowrap"
+                  onClick={() => setIsSheetUrlEditable(!isSheetUrlEditable)}
+                >
+                  {isSheetUrlEditable ? "Готово" : <><Pencil className="h-4 w-4 mr-2" /> Изменить</>}
+                </Button>
+              </div>
+            </div>
+            <DialogFooter className="mt-6">
+              <Button 
+                variant="default"
+                className="flex items-center"
+                onClick={() => {
+                  // Placeholder for the actual functionality
+                  alert('Функциональность добавления массово будет реализована позже');
+                  setIsAddMassGroupsOpen(false);
+                }}
+              >
+                <PlusCircle className="h-4 w-4 mr-2" />
+                Добавить чаты массово из источника
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

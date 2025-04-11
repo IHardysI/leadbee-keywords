@@ -22,6 +22,12 @@ export const routes = [
     href: "/chats",
     color: "text-orange-500",
   },
+  {
+    label: "Пользователи",
+    icon: Users,
+    href: "/users",
+    color: "text-blue-500",
+  },
 ];
 
 interface SidebarProps {
