@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,7 +29,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { getChatsByProjectId, ChatGroup, getTelegramGroups, TelegramGroupsResponse, addChatToProject, deleteChat } from "../../shared/api/chats";
+import { getChatsByProjectId, ChatGroup, getTelegramGroups, TelegramGroupsResponse, addChatToProject, deleteChat, addChatsToProjectBatch, getProjectNotificationChats, NotificationChat, activateNotificationChat, deactivateNotificationChat, deleteNotificationChat, addNotificationChat } from "../../shared/api/chats";
 import Link from "next/link";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -54,8 +54,8 @@ import {
   getOneTimeAnalysisStatus 
 } from "@/shared/api/analysis";
 import { getGroupsList } from "@/shared/api/chats";
+import { Switch } from "@/components/ui/switch";
 
-// We keep this interface for our internal use with additional UI-specific fields
 interface Project {
   id: string | number;
   name: string;
@@ -126,6 +126,25 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
   
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [tableLoading, setTableLoading] = useState(false);
+  
+  // Change selectedChat to selectedChats (array instead of single value)
+  const [selectedChats, setSelectedChats] = useState<string[]>([]);
+  
+  // Add state to track active tab
+  const [activeTab, setActiveTab] = useState("keywords");
+  
+  // Add new state variable for toggling
+  const [isToggling, setIsToggling] = useState<string | null>(null);
+  
+  // Add new state variables for notification chats
+  const [notificationChats, setNotificationChats] = useState<NotificationChat[]>([]);
+  const [chatToDelete, setChatToDelete] = useState<NotificationChat | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Add new state variables for adding a new notification chat
+  const [isAddingChat, setIsAddingChat] = useState(false);
+  const [newChatId, setNewChatId] = useState('');
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   
   // Function to trigger a refresh
   const triggerRefresh = () => {
@@ -534,6 +553,78 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
     setAnalysisTaskId(null);
     setHasAnalysisResults(false);
     setIsSelectingDateRange(false);
+  };
+  
+  // Simplify the tab change handler
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+  };
+  
+  // Add this function to handle deletion
+  const handleDeleteChat = async () => {
+    if (!chatToDelete) return;
+    
+    try {
+      setIsDeleting(true);
+      
+      await deleteNotificationChat(String(projectId), chatToDelete.chat_id);
+      
+      // Update notification chats list (remove deleted chat)
+      setNotificationChats(prevChats => 
+        prevChats.filter(c => c.id !== chatToDelete.id)
+      );
+      
+      // Close alert dialog
+      setChatToDelete(null);
+      
+      // Show success toast
+      toast.success("Чат удален", {
+        description: `Чат ${chatToDelete.chat_id} удален из уведомлений.`
+      });
+      
+    } catch (err) {
+      console.error('Error deleting notification chat:', err);
+      toast.error("Ошибка", {
+        description: "Не удалось удалить чат из уведомлений"
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+  
+  const handleAddChat = async () => {
+    try {
+      setIsAddingChat(true);
+      
+      const chatData = {
+        chat_id: newChatId,
+        project_id: String(projectId),
+        is_active: true,
+        show_full_message: false
+      };
+      
+      const newChat = await addNotificationChat(String(projectId), chatData);
+      
+      // Add the new chat to the list
+      setNotificationChats(prev => [...prev, newChat]);
+      
+      // Reset form and close dialog
+      setNewChatId('');
+      setIsDialogOpen(false);
+      
+      // Show success toast
+      toast.success("Чат добавлен", {
+        description: `Чат ${newChatId} добавлен в уведомления проекта.`
+      });
+      
+    } catch (error) {
+      console.error('Error adding notification chat:', error);
+      toast.error("Ошибка", {
+        description: "Не удалось добавить чат в уведомления"
+      });
+    } finally {
+      setIsAddingChat(false);
+    }
   };
   
   if (loading) {
@@ -978,18 +1069,24 @@ export function ProjectDetails({ projectId }: { projectId: string }) {
         </div>
       </div>
       
-      <Tabs defaultValue="keywords">
-        <TabsList className="cursor-pointer">
-          <TabsTrigger value="keywords" className="cursor-pointer">Ключевые слова</TabsTrigger>
-          <TabsTrigger value="groups" className="cursor-pointer">Чаты</TabsTrigger>
-        </TabsList>
-        <TabsContent value="keywords" className="mt-4">
-          <KeywordsTab projectId={String(project.id)} onDataChange={triggerRefresh} /> 
-        </TabsContent>
-        <TabsContent value="groups" className="mt-4">
-          <GroupsTab projectId={String(project.id)} onDataChange={triggerRefresh} />
-        </TabsContent>
-      </Tabs>
+      <div id="project-tabs-section">
+        <Tabs defaultValue="keywords" value={activeTab} onValueChange={handleTabChange}>
+          <TabsList className="cursor-pointer">
+            <TabsTrigger value="keywords" className="cursor-pointer">Ключевые слова</TabsTrigger>
+            <TabsTrigger value="groups" className="cursor-pointer">Отслеживаемые чаты</TabsTrigger>
+            <TabsTrigger value="notifications" className="cursor-pointer">Уведомления</TabsTrigger>
+          </TabsList>
+          <TabsContent value="keywords" className="mt-4 min-h-[400px]">
+            <KeywordsTab projectId={String(project.id)} onDataChange={triggerRefresh} /> 
+          </TabsContent>
+          <TabsContent value="groups" className="mt-4 min-h-[400px]">
+            <GroupsTab projectId={String(project.id)} onDataChange={triggerRefresh} />
+          </TabsContent>
+          <TabsContent value="notifications" className="mt-4 min-h-[400px]">
+            <NotificationsTab projectId={String(project.id)} onDataChange={triggerRefresh} />
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 }
@@ -1174,7 +1271,7 @@ const GroupsTab = ({ projectId, onDataChange }: { projectId: string | number, on
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [telegramGroups, setTelegramGroups] = useState<TelegramGroupsResponse['groups']>([]);
   const [loadingTelegramGroups, setLoadingTelegramGroups] = useState(false);
-  const [selectedChat, setSelectedChat] = useState<string | null>(null);
+  const [selectedChats, setSelectedChats] = useState<string[]>([]);
   const [addingChat, setAddingChat] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredTelegramGroups, setFilteredTelegramGroups] = useState<TelegramGroupsResponse['groups']>([]);
@@ -1230,8 +1327,14 @@ const GroupsTab = ({ projectId, onDataChange }: { projectId: string | number, on
         });
         
         if (data.status === "success") {
-          setTelegramGroups(data.groups);
-          setFilteredTelegramGroups(data.groups);
+          // Filter out groups that are already added to the project
+          const existingChatIds = groups.map(group => group.chat_id);
+          const filteredGroups = data.groups.filter(
+            group => !existingChatIds.includes(group.id)
+          );
+          
+          setTelegramGroups(filteredGroups);
+          setFilteredTelegramGroups(filteredGroups);
           setHasMoreGroups(data.total_count > telegramGroupsPage * itemsPerPage);
         }
       } catch (err) {
@@ -1242,9 +1345,9 @@ const GroupsTab = ({ projectId, onDataChange }: { projectId: string | number, on
     };
 
     fetchFilteredGroups();
-  }, [isDialogOpen, debouncedSearchTerm, telegramGroupsPage]);
+  }, [isDialogOpen, debouncedSearchTerm, telegramGroupsPage, groups]);
 
-  // Update fetchMoreGroups to use getGroupsList
+  // Also update fetchMoreGroups to filter out already added chats
   const fetchMoreGroups = async (page: number) => {
     try {
       const data = await getGroupsList({
@@ -1254,10 +1357,14 @@ const GroupsTab = ({ projectId, onDataChange }: { projectId: string | number, on
       });
       
       if (data.status === "success") {
+        // Get existing chat IDs for filtering
+        const existingChatIds = groups.map(group => group.chat_id);
+        
         setTelegramGroups(prev => {
-          const newGroups = data.groups.filter(
-            (group: TelegramGroupsResponse['groups'][0]) => !prev.some(existing => existing.id === group.id)
-          );
+          const newGroups = data.groups
+            .filter(group => !existingChatIds.includes(group.id)) // Filter out already added groups
+            .filter(group => !prev.some(existing => existing.id === group.id)); // Filter out duplicates
+            
           return [...prev, ...newGroups];
         });
         
@@ -1270,55 +1377,72 @@ const GroupsTab = ({ projectId, onDataChange }: { projectId: string | number, on
     }
   };
 
-  // Handle chat selection
+  // Update selection handling for multiple chats
   const handleChatSelection = (chatId: string) => {
-    setSelectedChat(chatId === selectedChat ? null : chatId);
+    setSelectedChats(prev => {
+      if (prev.includes(chatId)) {
+        return prev.filter(id => id !== chatId);
+      } else {
+        return [...prev, chatId];
+      }
+    });
   };
 
-  // Handle adding chat to project
+  // Update chat addition to use batch API
   const handleAddChat = async () => {
-    if (!selectedChat) {
-      toast.error("Выберите чат для добавления");
-      return;
-    }
-    
-    // Find the selected group to get its title
-    const selectedGroup = telegramGroups.find(group => group.id === selectedChat);
-    if (!selectedGroup) {
-      toast.error("Выбранная группа не найдена");
+    if (selectedChats.length === 0) {
+      toast.error("Выберите хотя бы один чат для добавления");
       return;
     }
     
     try {
       setAddingChat(true);
       
-      await addChatToProject({
-        project_id: String(projectId),
-        chat_id: selectedChat,
-        chat_name: selectedGroup.title,
-        chat_type: "telegram"
+      // Create array of chat objects for the batch API
+      const chatsToAdd = selectedChats.map(chatId => {
+        const selectedGroup = telegramGroups.find(group => group.id === chatId);
+        if (!selectedGroup) {
+          throw new Error(`Group with ID ${chatId} not found`);
+        }
+        
+        return {
+          project_id: String(projectId),
+          chat_id: chatId,
+          chat_name: selectedGroup.title,
+          chat_type: "telegram"
+        };
       });
       
-      // Refresh groups list
-      const data = await getChatsByProjectId(String(projectId));
-      setGroups(data);
+      // Use the new batch API
+      const response = await addChatsToProjectBatch(chatsToAdd);
+      
+      // Update local groups state directly with the newly added chats
+      if (response && response.chats) {
+        setGroups(prevGroups => [...prevGroups, ...response.chats]);
+      } else {
+        // Fallback to fetching if response doesn't contain the new chats
+        const data = await getChatsByProjectId(String(projectId));
+        setGroups(data);
+      }
       
       // Close dialog and reset selection
       setIsDialogOpen(false);
-      setSelectedChat(null);
+      setSelectedChats([]);
       
       // Show success toast
-      toast.success("Чат добавлен", {
-        description: "Чат успешно добавлен в проект"
+      toast.success("Чаты добавлены", {
+        description: `${chatsToAdd.length} ${chatsToAdd.length === 1 ? 'чат успешно добавлен' : 'чата успешно добавлены'} в проект`
       });
       
-      // Call onDataChange to trigger refresh in parent component
-      onDataChange();
+      // Skip calling onDataChange to avoid triggering a full refresh
+      // This is causing the whole component to reload
+      // Instead, we can manually update any parts of the parent UI that need it
+      // through a more targeted approach like a callback
       
     } catch (err) {
-      console.error('Error adding chat to project:', err);
+      console.error('Error adding chats to project:', err);
       toast.error("Ошибка", {
-        description: "Не удалось добавить чат в проект",
+        description: "Не удалось добавить чаты в проект",
       });
     } finally {
       setAddingChat(false);
@@ -1350,8 +1474,7 @@ const GroupsTab = ({ projectId, onDataChange }: { projectId: string | number, on
         description: `Чат "${chatToDelete.chat_name}" удален из проекта.`
       });
       
-      // Call onDataChange to trigger refresh in parent component
-      onDataChange();
+      // Don't call onDataChange() to avoid refreshing the entire component
       
     } catch (err) {
       console.error('Error deleting chat:', err);
@@ -1448,8 +1571,9 @@ const GroupsTab = ({ projectId, onDataChange }: { projectId: string | number, on
                             >
                               <TableCell className="text-center">
                                 <Checkbox 
-                                  checked={selectedChat === group.id}
+                                  checked={selectedChats.includes(group.id)}
                                   onCheckedChange={() => handleChatSelection(group.id)}
+                                  onClick={(e) => e.stopPropagation()}
                                 />
                               </TableCell>
                               <TableCell className="font-medium truncate max-w-[250px]">
@@ -1496,7 +1620,7 @@ const GroupsTab = ({ projectId, onDataChange }: { projectId: string | number, on
             <DialogFooter>
               <Button 
                 onClick={handleAddChat} 
-                disabled={!selectedChat || addingChat}
+                disabled={selectedChats.length === 0 || addingChat}
               >
                 {addingChat ? (
                   <>
@@ -1504,7 +1628,10 @@ const GroupsTab = ({ projectId, onDataChange }: { projectId: string | number, on
                     Добавление...
                   </>
                 ) : (
-                  "Добавить в проект"
+                  <>
+                    Добавить в проект 
+                    {selectedChats.length > 0 && ` (${selectedChats.length})`}
+                  </>
                 )}
               </Button>
             </DialogFooter>
@@ -1590,6 +1717,285 @@ const GroupsTab = ({ projectId, onDataChange }: { projectId: string | number, on
           </Table>
         </div>
       )}
+    </div>
+  );
+};
+
+const NotificationsTab = ({ projectId, onDataChange }: { projectId: string | number, onDataChange: () => void }) => {
+  const [notificationChats, setNotificationChats] = useState<NotificationChat[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isToggling, setIsToggling] = useState<string | null>(null);
+  const [chatToDelete, setChatToDelete] = useState<NotificationChat | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isAddingChat, setIsAddingChat] = useState(false);
+  const [newChatId, setNewChatId] = useState('');
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  useEffect(() => {
+    const fetchNotificationChats = async () => {
+      try {
+        setIsLoading(true);
+        const data = await getProjectNotificationChats(String(projectId));
+        setNotificationChats(data);
+        setError(null);
+      } catch (err) {
+        setError('Ошибка при загрузке чатов уведомлений');
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchNotificationChats();
+  }, [projectId]);
+
+  const handleToggleActive = async (chat: NotificationChat) => {
+    try {
+      setIsToggling(chat.id);
+      
+      let updatedChat;
+      if (chat.is_active) {
+        // Deactivate the chat
+        updatedChat = await deactivateNotificationChat(String(projectId), chat.chat_id);
+        toast.success("Уведомления отключены", {
+          description: `Уведомления для чата ${chat.chat_id} отключены`
+        });
+      } else {
+        // Activate the chat
+        updatedChat = await activateNotificationChat(String(projectId), chat.chat_id);
+        toast.success("Уведомления включены", {
+          description: `Уведомления для чата ${chat.chat_id} включены`
+        });
+      }
+      
+      // Update the chat in the list
+      setNotificationChats(prev => 
+        prev.map(c => c.id === chat.id ? updatedChat : c)
+      );
+      
+    } catch (error) {
+      console.error('Error toggling notification chat:', error);
+      toast.error("Ошибка", {
+        description: "Не удалось изменить статус уведомлений"
+      });
+    } finally {
+      setIsToggling(null);
+    }
+  };
+
+  // Add this function to handle deletion
+  const handleDeleteChat = async () => {
+    if (!chatToDelete) return;
+    
+    try {
+      setIsDeleting(true);
+      
+      await deleteNotificationChat(String(projectId), chatToDelete.chat_id);
+      
+      // Update notification chats list (remove deleted chat)
+      setNotificationChats(prevChats => 
+        prevChats.filter(c => c.id !== chatToDelete.id)
+      );
+      
+      // Close alert dialog
+      setChatToDelete(null);
+      
+      // Show success toast
+      toast.success("Чат удален", {
+        description: `Чат ${chatToDelete.chat_id} удален из уведомлений.`
+      });
+      
+    } catch (err) {
+      console.error('Error deleting notification chat:', err);
+      toast.error("Ошибка", {
+        description: "Не удалось удалить чат из уведомлений"
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleAddChat = async () => {
+    try {
+      setIsAddingChat(true);
+      
+      const chatData = {
+        chat_id: newChatId,
+        project_id: String(projectId),
+        is_active: true,
+        show_full_message: false
+      };
+      
+      const newChat = await addNotificationChat(String(projectId), chatData);
+      
+      // Add the new chat to the list
+      setNotificationChats(prev => [...prev, newChat]);
+      
+      // Reset form and close dialog
+      setNewChatId('');
+      setIsDialogOpen(false);
+      
+      // Show success toast
+      toast.success("Чат добавлен", {
+        description: `Чат ${newChatId} добавлен в уведомления проекта.`
+      });
+      
+    } catch (error) {
+      console.error('Error adding notification chat:', error);
+      toast.error("Ошибка", {
+        description: "Не удалось добавить чат в уведомления"
+      });
+    } finally {
+      setIsAddingChat(false);
+    }
+  };
+
+  if (isLoading) return (
+    <div className="flex justify-center items-center">
+      <Loader className="h-8 w-8 animate-spin text-primary" />
+    </div>
+  );
+  
+  if (error) return <div className="text-red-500 p-4 min-h-[200px]">{error}</div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold">Чаты уведомлений</h2>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button>Добавить чат</Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Добавить чат для уведомлений</DialogTitle>
+              <DialogDescription>
+                Введите ID Telegram чата, в который будут приходить уведомления о совпадениях ключевых слов
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="chatId" className="text-right">
+                  ID чата
+                </Label>
+                <Input
+                  id="chatId"
+                  value={newChatId}
+                  onChange={(e) => setNewChatId(e.target.value)}
+                  className="col-span-3"
+                  placeholder="-1001234567890"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button 
+                type="submit" 
+                onClick={handleAddChat}
+                disabled={isAddingChat || !newChatId}
+              >
+                {isAddingChat ? (
+                  <>
+                    <Loader className="mr-2 h-4 w-4 animate-spin" />
+                    Добавление...
+                  </>
+                ) : (
+                  "Добавить"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {notificationChats.length === 0 ? (
+        <div className="p-4 text-center text-muted-foreground">
+          В этом проекте нет чатов уведомлений.
+        </div>
+      ) : (
+        <div className="rounded-md border overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>ID чата</TableHead>
+                <TableHead className="w-[200px]">Статус</TableHead>
+                <TableHead>Дата добавления</TableHead>
+                <TableHead>Последнее обновление</TableHead>
+                <TableHead className="w-[100px]">Действия</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {notificationChats.map((chat) => (
+                <TableRow key={chat.id} className="hover:bg-gray-50/10">
+                  <TableCell className="font-medium">
+                    {chat.chat_id}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        checked={chat.is_active}
+                        onCheckedChange={() => handleToggleActive(chat)}
+                        disabled={isToggling === chat.id}
+                      />
+                      <span className={chat.is_active ? "text-green-600" : "text-gray-500"}>
+                        {chat.is_active ? "Активен" : "Неактивен"}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {format(new Date(chat.created_at), 'dd.MM.yyyy')}
+                  </TableCell>
+                  <TableCell>
+                    {format(new Date(chat.updated_at), 'dd.MM.yyyy')}
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost" 
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setChatToDelete(chat);
+                      }}
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      {/* Alert Dialog for delete confirmation */}
+      <AlertDialog open={!!chatToDelete} onOpenChange={(open) => !open && setChatToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Вы уверены?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Это действие удалит чат "{chatToDelete?.chat_id}" из уведомлений проекта. Это действие нельзя отменить.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteChat}
+              disabled={isDeleting}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader className="mr-2 h-4 w-4 animate-spin" />
+                  Удаление...
+                </>
+              ) : (
+                "Удалить"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }; 

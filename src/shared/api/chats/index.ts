@@ -35,6 +35,19 @@ export interface TelegramGroupsResponse {
 }
 
 /**
+ * Interface for notification chat objects
+ */
+export interface NotificationChat {
+  chat_id: string;
+  project_id: string;
+  is_active: boolean;
+  show_full_message: boolean;
+  id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
  * Fetch groups/chats for a specific project by ID
  * @param projectId The ID of the project
  * @returns Promise containing an array of chat groups
@@ -273,3 +286,192 @@ export const getGroupsList = async ({
     throw error;
   }
 };
+
+/**
+ * Add multiple chats to a project in a single request
+ * @param chats Array of chat data to add
+ * @returns Promise containing the API response
+ */
+export const addChatsToProjectBatch = async (chats: Array<{ 
+  project_id: string, 
+  chat_id: string,
+  chat_name: string,
+  chat_type: string
+}>): Promise<any> => {
+  try {
+    const response = await fetch(
+      'https://leadbee-keywords.dev.reflectai.pro/api/v1/chats/batch',
+      {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ chats }),
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error('Error adding chats to project in batch:', error);
+    throw error;
+  }
+};
+
+/**
+ * Fetch notification chats for a specific project
+ * @param projectId The ID of the project
+ * @returns Promise containing an array of notification chats
+ */
+export async function getProjectNotificationChats(projectId: string): Promise<NotificationChat[]> {
+  try {
+    const response = await fetch(
+      `https://leadbee-keywords.dev.reflectai.pro/api/v1/notifications/projects/${projectId}/telegram-chats`,
+      {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+        },
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    
+    return response.json() as Promise<NotificationChat[]>;
+  } catch (error) {
+    console.error('Error fetching notification chats:', error);
+    throw error;
+  }
+}
+
+/**
+ * Activate a notification chat for a project
+ * @param projectId The project ID
+ * @param chatId The chat ID to activate
+ * @returns Promise containing the updated notification chat
+ */
+export async function activateNotificationChat(projectId: string, chatId: string): Promise<NotificationChat> {
+  try {
+    const response = await fetch(
+      `https://leadbee-keywords.dev.reflectai.pro/api/v1/notifications/projects/${projectId}/telegram-chats/${chatId}/activate`,
+      {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+        },
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    
+    return response.json() as Promise<NotificationChat>;
+  } catch (error) {
+    console.error('Error activating notification chat:', error);
+    throw error;
+  }
+}
+
+/**
+ * Deactivate a notification chat for a project
+ * @param projectId The project ID
+ * @param chatId The chat ID to deactivate
+ * @returns Promise containing the updated notification chat
+ */
+export async function deactivateNotificationChat(projectId: string, chatId: string): Promise<NotificationChat> {
+  try {
+    const response = await fetch(
+      `https://leadbee-keywords.dev.reflectai.pro/api/v1/notifications/projects/${projectId}/telegram-chats/${chatId}/deactivate`,
+      {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+        },
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    
+    return response.json() as Promise<NotificationChat>;
+  } catch (error) {
+    console.error('Error deactivating notification chat:', error);
+    throw error;
+  }
+}
+
+/**
+ * Delete a notification chat from a project
+ * @param projectId The project ID
+ * @param chatId The chat ID to delete
+ * @returns Promise containing the API response
+ */
+export async function deleteNotificationChat(projectId: string, chatId: string): Promise<any> {
+  try {
+    const response = await fetch(
+      `https://leadbee-keywords.dev.reflectai.pro/api/v1/notifications/projects/${projectId}/telegram-chats/${chatId}`,
+      {
+        method: 'DELETE',
+        headers: {
+          'accept': 'application/json',
+        },
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    
+    return response.json();
+  } catch (error) {
+    console.error('Error deleting notification chat:', error);
+    throw error;
+  }
+}
+
+/**
+ * Add a new notification chat to a project
+ * @param projectId The project ID
+ * @param data The notification chat data to add
+ * @returns Promise containing the created notification chat
+ */
+export async function addNotificationChat(
+  projectId: string, 
+  data: {
+    chat_id: string;
+    project_id: string;
+    is_active: boolean;
+    show_full_message: boolean;
+  }
+): Promise<NotificationChat> {
+  try {
+    const response = await fetch(
+      `https://leadbee-keywords.dev.reflectai.pro/api/v1/notifications/projects/${projectId}/telegram-chats`,
+      {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    
+    return response.json() as Promise<NotificationChat>;
+  } catch (error) {
+    console.error('Error adding notification chat:', error);
+    throw error;
+  }
+}
